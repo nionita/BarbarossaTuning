@@ -17,6 +17,12 @@ Steps (single streaming pass, stdlib only):
 With --natural there is no dedup and no hash sampling by position: every valid line is kept with
 probability --rate (a uniform sample of the lines, duplicates stay), so the output has the distribution
 in which the positions occurred in the games (repeated positions are repeated records).
+
+With --holdout N the sorted input files are split: every N-th file (index 0, N, 2N, ...) belongs to the
+validation part, the others to the training part; --part selects which one is processed. The source files
+are in game order, so the parts are game disjoint. The training part samples the position hashes from the
+bottom of the hash range, the validation part from the top, so (with rates summing to < 1) no position is
+in both parts.
 """
 
 from __future__ import annotations
@@ -59,6 +65,10 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--prefix", default="cxig", help="output files are <prefix>-NN-filt.csv")
     ap.add_argument("--natural", action="store_true",
                     help="no dedup: uniform sample of the lines, --rate = probability per valid line")
+    ap.add_argument("--holdout", type=int, default=0,
+                    help="split the sorted input files: every N-th file is validation (0 = no split)")
+    ap.add_argument("--part", choices=("train", "val"), default="train",
+                    help="with --holdout: which part to process")
     return ap.parse_args()
 
 
@@ -71,6 +81,15 @@ def main() -> int:
     if not files:
         print(f"ERROR: no input files {args.glob} in {args.src}", file=sys.stderr)
         return 2
+    from_top = False
+    if args.holdout > 0:
+        if args.natural:
+            print("ERROR: --holdout is not implemented with --natural", file=sys.stderr)
+            return 2
+        val = args.part == "val"
+        files = [f for i, f in enumerate(files) if (i % args.holdout == 0) == val]
+        from_top = val
+        print(f"{args.part} part: {len(files)} files: " + " ".join(os.path.basename(f) for f in files))
     os.makedirs(args.out, exist_ok=True)
 
     threshold = int(args.rate * (1 << 64))
@@ -109,6 +128,8 @@ def main() -> int:
                     continue
                 key = " ".join(fields[:4])
                 h = key_hash(key)
+                if from_top:
+                    h = (1 << 64) - 1 - h       # top of the hash range, disjoint from the training part
                 if h >= threshold:
                     continue
                 sampled += 1
