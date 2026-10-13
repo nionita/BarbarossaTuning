@@ -23,6 +23,7 @@ param(
     [string[]]$Params = @(),
     [string]$Source = "C:\Learn\Tune\cxig\run3\tuned.cfg",
     [string]$Config = "",   # complete candidate config, played as it is (instead of -Params, -Source, -Scale)
+    [string]$DataFile = "", # SelfPlay --data: leaf positions of every move with the game result (and .meta)
     [double]$Scale = 1,     # scale of the tuned change relative to the compiled weights; 1 = as in -Source
     [string]$Weights = "C:\Learn\Tune\cxig\Weights.hs", # compiled values
     [string]$Base = "",     # base config; empty = compiled weights of the SelfPlay exe (--base-current)
@@ -106,6 +107,7 @@ $spArgs = @("-m", $matchDir, "-a", $candCfg)
 if ($Base) { $spArgs += @("-b", $Base) } else { $spArgs += "--base-current" }
 $spArgs += @("-i", $Fens, "-f", $Pairs, "-n", $Nodes)
 if ($Skip -gt 0) { $spArgs += @("-s", $Skip) }
+if ($DataFile) { $spArgs += @("--data", [System.IO.Path]::GetFullPath($DataFile)) }
 
 Write-Host "$Exe $($spArgs -join ' ')"
 Write-Host "Group ${Group}: $($wanted.Count) values"

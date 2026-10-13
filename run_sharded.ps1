@@ -7,6 +7,9 @@
 #   .\run_sharded.ps1 -Name rook75 -Params ewRookHOpen        # one weight; bare name = mid and end
 #   .\run_sharded.ps1 -Name rookopen75 -Params mid.ewRookHOpen -Source C:\Learn\Tune\cxig\recov-up\tuned.cfg
 #   .\run_sharded.ps1 -Name pst40 -Config C:\Learn\Tune\hvar\cand\pst40.cfg   # a complete config as it is
+#   .\run_sharded.ps1 -Name gen1 -Config ...\compiled.cfg -DataDir C:\Learn\Tune\hvar\sp-data   # with data collection
+# -DataDir: every shard writes the leaf positions of its games with the result to <DataDir>\<Name>-s<i>-filt.csv
+# (and .meta, see SelfPlay --data); -Offset: first opening of shard 1 (other runs on other openings)
 # Results: <Root>\<Name>-s1.. <Name>-sN (shards) and <Root>\<Name> (merged result.txt).
 
 param(
@@ -15,6 +18,8 @@ param(
     [string[]]$Params = @(),
     [switch]$All,           # all weights of the source config (every value in it)
     [string]$Config = "",   # complete candidate config, played as it is (instead of -Params / -All)
+    [string]$DataDir = "",  # collect the leaf positions with the game results there (SelfPlay --data)
+    [int]$Offset = 0,       # openings skipped before shard 1
     [double]$Scale = 1,
     [int]$Pairs = 7000,     # opening pairs per shard
     [int]$Shards = 3,
@@ -45,7 +50,10 @@ if ($Config) {
 $paramText = $names -join ","
 
 $fenCount = @(Get-Content -LiteralPath $Fens).Count
-if ($Pairs * $Shards -gt $fenCount) { throw "$Pairs pairs x $Shards shards = $($Pairs * $Shards) > $fenCount openings" }
+if ($Offset + $Pairs * $Shards -gt $fenCount) {
+    throw "$Offset + $Pairs pairs x $Shards shards = $($Offset + $Pairs * $Shards) > $fenCount openings"
+}
+if ($DataDir) { New-Item -ItemType Directory -Force -Path $DataDir | Out-Null }
 foreach ($i in 1..$Shards) {
     if (Test-Path -LiteralPath (Join-Path $Root "$Name-s$i")) { throw "$Name-s$i exists already; use another -Name" }
 }
@@ -54,16 +62,17 @@ $procs = @()
 foreach ($i in 1..$Shards) {
     $argList = @(
         "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $group,
-        "-Group", "$Name-s$i", "-Pairs", $Pairs, "-Skip", (($i - 1) * $Pairs), "-Nodes", $Nodes,
+        "-Group", "$Name-s$i", "-Pairs", $Pairs, "-Skip", ($Offset + ($i - 1) * $Pairs), "-Nodes", $Nodes,
         "-Root", $Root, "-Fens", $Fens, "-Exe", $Exe
     )
+    if ($DataDir) { $argList += @("-DataFile", (Join-Path $DataDir "$Name-s$i-filt.csv")) }
     if ($Config) {
         $argList += @("-Config", $Config)
     } else {
         $argList += @("-Params", $paramText, "-Source", $Source, "-Scale", $Scale)
     }
     $procs += Start-Process -FilePath "powershell.exe" -ArgumentList $argList -WindowStyle Minimized -PassThru
-    Write-Host "started shard $i (openings $(($i - 1) * $Pairs) .. $($i * $Pairs - 1)), pid $($procs[-1].Id)"
+    Write-Host "started shard $i (openings $($Offset + ($i - 1) * $Pairs) .. $($Offset + $i * $Pairs - 1)), pid $($procs[-1].Id)"
 }
 Write-Host "waiting for $Shards shards, $($names.Count) values, scale $Scale ..."
 $procs | Wait-Process
