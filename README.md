@@ -14,6 +14,19 @@ Binaries: `C:\astra\TuneSGD\TuneSGD-<branch>.exe`, `C:\astra\SelfPlay\SelfPlay-<
 | `run_sharded.ps1` | the same as `run_group.ps1` in 3 parallel shards over disjoint openings, merged |
 | `merge_groups.ps1` | adds up the WDL of several group runs |
 | `run_sweep.ps1` | sweep of weights over factors of the compiled value: Elo and loss (several loss variants) per point |
+| `hv_data.py` | loads the `TuneSGD -X` export (`*-exp.csv`, cached as `.npz`): HCE eval, features, pseudo derivatives, antisymmetric PST matrix |
+| `hv_fit.py` | how much the HCE misses: baseline, gen3 ceiling, HCE + PST, refitted HCE (+ PST) on held-out data |
+| `env_dlls.py` | lets the conda env's `python.exe` run without activation (DLL path for numpy) |
+
+Hidden variable experiment (branch `hvar` of both repositories), working folder `C:\Learn\Tune\hvar`
+(`python` = `C:\Users\Nicu\miniconda3a\envs\jacob\python.exe`; `prep_data.py --holdout 8` makes a game and
+position disjoint validation set):
+
+    python prep_data.py --out C:\Learn\Tune\hvar\data-train --records 4000000 --files 8 --rate 0.06 --phase-min 1 --prefix tr --holdout 8 --part train --seed 1
+    python prep_data.py --out C:\Learn\Tune\hvar\data-val --records 1000000 --files 2 --rate 0.1 --phase-min 1 --prefix va --holdout 8 --part val --seed 2
+    C:\astra\TuneSGD\TuneSGD-hvar.exe -X -i C:\Learn\Tune\hvar\data-train -o C:\Learn\Tune\hvar\exp-train
+    C:\astra\TuneSGD\TuneSGD-hvar.exe -X -i C:\Learn\Tune\hvar\data-val -o C:\Learn\Tune\hvar\exp-val
+    python hv_fit.py --train C:\Learn\Tune\hvar\exp-train --val C:\Learn\Tune\hvar\exp-val --out C:\Learn\Tune\hvar\fit1
 
 Typical use:
 
