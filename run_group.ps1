@@ -7,20 +7,22 @@
 # directory is never overwritten without -Force.
 # It plays a fixed number of opening pairs against the base (no early stop) and the Elo is reported.
 # Everything is created under <Root>\<Group>\ :
-#   candidate.cfg      the partial config: only the group's parameters
+#   candidate.cfg      the partial config: only the group's parameters (with -Config: a copy of that file)
 #   match\             working directory of SelfPlay
 #   match.stdout.txt   full SelfPlay output
 #   result.txt         summary: parameters, WDL, score, Elo with 95% interval
 #
 # Example:  .\run_group.ps1 -Group king -Params ewKingSafe,ewKingOpen,ewKingPlaceCent,ewKingPlacePwns,ewKingPawn,ewKingThreat,ewKingProtB,ewKingProtN
 #           (a bare name selects mid. and end.; mid.ewX / end.ewX select one value)
+#           .\run_group.ps1 -Group pst40 -Config C:\Learn\Tune\hvar\cand\pst40.cfg
+#           (-Config: a complete candidate config, played as it is, e.g. with PST lines from hv_cfg.py)
 
 param(
     [Parameter(Mandatory = $true)]
     [string]$Group,
-    [Parameter(Mandatory = $true)]
-    [string[]]$Params,
+    [string[]]$Params = @(),
     [string]$Source = "C:\Learn\Tune\cxig\run3\tuned.cfg",
+    [string]$Config = "",   # complete candidate config, played as it is (instead of -Params, -Source, -Scale)
     [double]$Scale = 1,     # scale of the tuned change relative to the compiled weights; 1 = as in -Source
     [string]$Weights = "C:\Learn\Tune\cxig\Weights.hs", # compiled values
     [string]$Base = "",     # base config; empty = compiled weights of the SelfPlay exe (--base-current)
@@ -35,7 +37,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-foreach ($f in @($Source, $Fens, $Exe, $Weights)) {
+if (-not $Config -and $Params.Count -eq 0) { throw "Give -Params or -Config" }
+$needed = if ($Config) { @($Config, $Fens, $Exe) } else { @($Source, $Fens, $Exe, $Weights) }
+foreach ($f in $needed) {
     if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { throw "File not found: $f" }
 }
 if ($Base -and -not (Test-Path -LiteralPath $Base -PathType Leaf)) { throw "Base config not found: $Base" }
@@ -51,6 +55,15 @@ if ((Test-Path -LiteralPath $groupDir) -and -not $Force) {
     throw "$groupDir exists already; use another group name or -Force"
 }
 
+if ($Config) {
+# The whole config: its value names (weights mid./end., PST pst.) for the summary
+$wanted = @(Get-Content -LiteralPath $Config |
+    ForEach-Object { if ($_ -match '^\s*((?:mid|end|pst)\.[\w.]+)\s*=') { $Matches[1] } })
+if ($wanted.Count -eq 0) { throw "No values found in $Config" }
+New-Item -ItemType Directory -Force -Path $matchDir | Out-Null
+$cfgLines = @("-- group ${Group}: config $Config") + @(Get-Content -LiteralPath $Config)
+[System.IO.File]::WriteAllText($candCfg, (($cfgLines -join "`n") + "`n"), $noBom)
+} else {
 # The wanted names: a bare name selects the mid and the end value
 $wanted = @()
 foreach ($p in ($Params | ForEach-Object { $_ -split "," } | Where-Object { $_ })) {
@@ -87,6 +100,7 @@ if ($Scale -ne 1) {
 New-Item -ItemType Directory -Force -Path $matchDir | Out-Null
 $cfgLines = @("-- group $Group from $Source, scale $Scale") + ($wanted | ForEach-Object { "$_ = $($selected[$_])" })
 [System.IO.File]::WriteAllText($candCfg, (($cfgLines -join "`n") + "`n"), $noBom)
+}
 
 $spArgs = @("-m", $matchDir, "-a", $candCfg)
 if ($Base) { $spArgs += @("-b", $Base) } else { $spArgs += "--base-current" }
@@ -121,8 +135,8 @@ $ci = 1.96 * 400 / [Math]::Log(10) / ($s * (1 - $s)) * $se
 
 $summary = @(
     "group:    $Group",
-    "params:   $($wanted -join ' ')",
-    "source:   $Source",
+    $(if ($Config) { "config:   $Config ($($wanted.Count) values)" } else { "params:   $($wanted -join ' ')" }),
+    $(if ($Config) { "source:   -" } else { "source:   $Source" }),
     "scale:    $Scale (value = compiled + scale * (source - compiled))",
     "base:     $(if ($Base) { $Base } else { 'compiled weights' })",
     "games:    $([int]$n) ($Pairs pairs from opening $Skip, $Nodes nodes per move), $('{0:N1}' -f $minutes) minutes",

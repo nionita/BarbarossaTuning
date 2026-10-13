@@ -123,8 +123,11 @@ def read_weights(directory: str) -> dict[str, tuple[int, int]]:
 
 def load(files: list[str], max_score: float = 2000, workers: int = 8) -> Data:
     """Load (and cache) the given export files and concatenate them."""
-    with ProcessPoolExecutor(max_workers=max(1, min(workers, len(files)))) as ex:
-        caches = list(ex.map(_parse_file, files))
+    if workers <= 1 or len(files) == 1:
+        caches = [_parse_file(f) for f in files]
+    else:
+        with ProcessPoolExecutor(max_workers=min(workers, len(files))) as ex:
+            caches = list(ex.map(_parse_file, files))
     parts = [np.load(c) for c in caches]
     names = [str(x) for x in parts[0]["names"]]
     for c, p in zip(caches, parts):
