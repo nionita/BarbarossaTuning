@@ -36,6 +36,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--pst", help="pst-<model>.csv of hv_fit.py")
     ap.add_argument("--pst-scale", type=float, default=1.0, help="factor for the PST values")
+    ap.add_argument("--placement", action="store_true",
+                    help="remove the occurrence weighted mean per piece and phase (the material part)")
     ap.add_argument("--hce", help="<model>.cfg of hv_fit.py with refitted HCE weights")
     ap.add_argument("--hce-scale", type=float, default=1.0,
                     help="value = compiled + scale * (refitted - compiled)")
@@ -47,7 +49,7 @@ def main() -> int:
         return 2
 
     lines = [f"-- candidate from hv_cfg.py: hce {args.hce} (scale {args.hce_scale}), "
-             f"pst {args.pst} (scale {args.pst_scale})"]
+             f"pst {args.pst} (scale {args.pst_scale}{', placement only' if args.placement else ''})"]
     if args.hce:
         comp = compiled_weights(args.weights) if args.hce_scale != 1 else {}
         for line in open(args.hce, encoding="utf-8"):
@@ -62,12 +64,22 @@ def main() -> int:
     npst = 0
     if args.pst:
         with open(args.pst, encoding="utf-8") as fi:
-            for r in csv.DictReader(fi):
-                if int(r["count"]) == 0:
-                    continue
-                for ph in ("mid", "end"):
-                    v = round(args.pst_scale * float(r[ph]))
-                    if v != 0:
+            rows = [r for r in csv.DictReader(fi) if int(r["count"]) > 0]
+        # a constant over all squares of a piece type is a change of the piece value (material):
+        # --placement removes the occurrence weighted mean per piece and phase
+        shift = {}
+        for pc in "PNBRQK":
+            for ph in ("mid", "end"):
+                rs = [r for r in rows if r["piece"] == pc]
+                w = sum(int(r["count"]) for r in rs)
+                mean = sum(int(r["count"]) * float(r[ph]) for r in rs) / w if w else 0.0
+                shift[pc, ph] = mean if args.placement else 0.0
+                if args.placement:
+                    print(f"  {pc} {ph}: removed mean {mean / 8:7.1f} cp")
+        for r in rows:
+            for ph in ("mid", "end"):
+                v = round(args.pst_scale * (float(r[ph]) - shift[r["piece"], ph]))
+                if v != 0:
                         lines.append(f"pst.{ph}.{r['piece']}{r['name']} = {v}")
                         npst += 1
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
