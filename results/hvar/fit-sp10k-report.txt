@@ -1,0 +1,241 @@
+train 3,545,887 records (8 files), selection 251,591, test 253,765; q = 0.0, max score 2000; PST columns used 368 / 384 (10s)
+hce            train 0.103322  sel 0.105739  test 0.106484  k  158.8  c   -2.4  iter 9  (13s)
+  hce+pst tau   5.0 cp: train 0.101925  sel 0.104605  (579 it, 230s)
+  hce+pst tau  10.0 cp: train 0.101749  sel 0.104483  (877 it, 576s)
+  hce+pst tau  20.0 cp: train 0.101667  sel 0.104408  (1376 it, 1206s)
+  hce+pst tau  40.0 cp: train 0.101624  sel 0.104332  (2082 it, 2041s)
+  hce+pst tau  80.0 cp: train 0.101600  sel 0.104252  (2958 it, 3319s)
+hce+pst        train 0.101600  sel 0.104252  test 0.105349  k  162.9  c   -2.7  tau 80.0  iter 2958  (3319s)
+hce-tuned      train 0.102251  sel 0.104123  test 0.105330  k  158.8  c   -1.8  iter 66  (3352s)
+  hce-tuned+pst tau   5.0 cp: train 0.101441  sel 0.103718  (335 it, 3624s)
+  hce-tuned+pst tau  10.0 cp: train 0.101351  sel 0.103753  (511 it, 3962s)
+  hce-tuned+pst tau  20.0 cp: train 0.101303  sel 0.103785  (883 it, 4606s)
+  hce-tuned+pst tau  40.0 cp: train 0.101285  sel 0.103803  (1165 it, 5547s)
+  hce-tuned+pst tau  80.0 cp: train 0.101279  sel 0.103806  (1496 it, 6526s)
+hce-tuned+pst  train 0.101441  sel 0.103718  test 0.105020  k  158.8  c   -2.3  tau 5.0  iter 335  (6527s)
+
+Test loss relative to hce (negative = better); gap closed = part of the hce -> gen3 gap
+  hce             +0.000%   (test - train +3.060%)
+  hce+pst         -1.065%   (test - train +3.691%)
+  hce-tuned       -1.083%   (test - train +3.012%)
+  hce-tuned+pst   -1.375%   (test - train +3.528%)
+
+PST of hce+pst (cp, owner's view), occurrence weighted mean per piece (material shift):
+  P: mid   -11.5  end     3.5
+  N: mid    -9.6  end     8.7
+  B: mid   -24.9  end    25.2
+  R: mid   -43.7  end    91.7
+  Q: mid    52.3  end   208.2
+  K: mid   -17.7  end    19.2
+  P  mid (cp)                                  end (cp)
+  8     .    .    .    .    .    .    .    .        .    .    .    .    .    .    .    .
+  7    40  130  122  126   48  -72  -18   90       10    5  -36  -30  -14    1   14  -52
+  6   -19  -44  -18  -15   -4   12   13   36       35   40   14   -6   -4   14   20  -11
+  5   -12   -7  -11  -16  -22  -12  -24   16       33    7   13   -7  -10   -3    5    5
+  4    -4  -29  -11  -27  -23  -12  -11  -28       25   13   -2  -19   -4   -5   -4   11
+  3   -12  -32  -14  -29  -11   -9   -1  -11       19    1    6    7    3    4  -12    1
+  2     0  -19  -11  -16    8    6   -3  -29       15   11   15    7    8   10  -11    1
+  1     .    .    .    .    .    .    .    .        .    .    .    .    .    .    .    .
+  N  mid (cp)                                  end (cp)
+  8   -58 -101   12  -66  -98   -1   18 -129        4   43  -16  -26   37    3   -6 -165
+  7   -43    2  -14   22   41   42   -3  -16       15    4   23   -8   -6  -35    6   -5
+  6   -10  -27  -11   -7   -2   54   12   17       23   19   13   28   17  -23   -8    0
+  5    31    5    3   12   -8   -6  -11   52      -11   12   13   20   12    8   -5  -12
+  4    -8  -22   -2  -13   -8    6  -17   -7        9    5   15   17   24    4   30   11
+  3   -23  -20  -22  -11   -5   -5  -16    5       -5    6    7    8   -3    3   21   32
+  2   -80   -9  -15   -5  -17    2    7   -2        8  -31   15    9   22    5    7  -12
+  1  -108  -41  -46  -24    2  -23  -25  185        1   13  -11    7   -3   12   -7  -15
+  B  mid (cp)                                  end (cp)
+  8   -15  -44  -24  -95  -11  -90  -73 -199        4   72   40   37   14   53   -8  114
+  7   -36  -35  -57  -64  -59   15  -94  -55       24   30   36   28   53    8   51   20
+  6   -11  -45   -8  -20  -22  -19  -14  -21       20   42   24   26   10   35   33   57
+  5   -57  -30  -30   -3  -35  -31  -41  -31       47   34   35    7   28    8   43   37
+  4    -5  -32  -12  -28  -20  -41   -6   -6       26   24   19   17   10   47  -11    7
+  3   -20    3  -37  -29  -24    1  -10   -0       28   15   42   23   35   14   30    8
+  2    35  -13  -37  -40  -31  -18   -8  -27        3   13    7   34   26   25   20    3
+  1   -30   -4  -32  -17  -27  -24  -16  -54       18   -9   27   31   17   20   -3   37
+  R  mid (cp)                                  end (cp)
+  8   -53  -42  -69   16  -30  -37  -47  -40      111  107  114   88   98  120  108  108
+  7   -29  -46  -28  -21  -15  -23  -12   60      102  113   98  101   91  102  105   83
+  6   -34  -42  -71   -2    2    2   52   21      106  115  107   94   92   77   90   96
+  5   -55  -72  -41  -40  -36    7  -30  -30       97  108   99  108   91   83   95   97
+  4   -67  -64  -76  -64  -36  -27  -35  -81      105  104  104  106   92   95  110  103
+  3   -73  -83  -86  -45  -66  -41  -12   -7      112  113  106   93  100   90   97   91
+  2   -68  -76  -65  -62  -27  -23  -47  -98       97   94   87   88   71   81   74  120
+  1   -52  -56  -55  -48  -37  -29  -34  -48       97   85   91   89   74   81   86   66
+  Q  mid (cp)                                  end (cp)
+  8    28   24    8  -47  -17   44   48   63      211  189  243  289  286  240  156  203
+  7    11   30   14   24   57   74   48  128      228  242  269  247  230  245  232  181
+  6    40   48   67   29   55  123   83   45      230  204  209  251  237  189  178  196
+  5    46   49   56   56   57   52   71   68      197  214  241  237  231  227  208  224
+  4    49   39   52   50   51   56   73   92      195  209  213  231  231  257  200  188
+  3    40   50   48   44   56   62   69   62      183  200  218  213  217  225  209  183
+  2    27   58   50   62   60   78   41   93      209  201  198  182  193  192  202  103
+  1    59   63   58   53   55   67   40  170      183  174  182  202  199  113  170   24
+  K  mid (cp)                                  end (cp)
+  8   237  102  135   46   70   -8  -25   82     -263  -82  -97  -78  -20    6   15 -146
+  7   115  121   -5   20  -11  -47  -84   78      -94  -51   26  -12  -23   41   66  -22
+  6   169   68  179   14   38   18   -2  -77      -71   -4  -45   -2   11   36   46   29
+  5    46   36   53   74  -20    6  -29 -102      -47   -3  -12  -17   10   25   38   54
+  4   -75  -79  -40  -22    7  -45  -39 -128       20    9   12   12   13   41   36   38
+  3   -69 -152  -94  -42  -25  -24  -31  -51       10   38   38   25   28   30   33   28
+  2   -52  -44  -78  -58  -28  -15   -1    2        2   39   39   36   26   27   19   19
+  1   -38  -39   19  -29    8  -28  -23   18        6   15   12   15   -8   18   27  -19
+
+HCE weights of hce-tuned (compiled -> refitted):
+  ewMaterialDiff     mid     8 ->     7.1   end     8 ->     9.3
+  ewKingSafe         mid     1 ->     1.3   end     0 ->    -0.1
+  ewKingOpen         mid     2 ->     3.6   end     4 ->     2.2
+  ewKingPlaceCent    mid     8 ->     5.6   end     1 ->     0.1
+  ewKingPlacePwns    mid     0 ->    -1.7   end     4 ->     6.1
+  ewKingPawn         mid     3 ->   -81.1   end    50 ->   110.4
+  ewKingThreat       mid     0 ->   155.5   end   300 ->   130.1
+  ewKingProtB        mid    -8 ->    -1.3   end   -12 ->   -43.0
+  ewKingProtN        mid   -16 ->   -37.9   end   -28 ->   -60.9
+  ewRookHOpen        mid   183 ->   147.0   end   180 ->    78.3
+  ewRookConn         mid    98 ->    99.7   end     1 ->    92.3
+  ewRookKingFile     mid    96 ->   -46.2   end     0 ->    92.7
+  ewRookKingRank     mid   160 ->   -85.8   end   140 ->   135.0
+  ewMobilityKnight   mid    70 ->    67.6   end    54 ->    21.5
+  ewMobilityBishop   mid    67 ->    50.0   end    32 ->    26.5
+  ewMobilityRook     mid    32 ->    32.6   end    40 ->    49.0
+  ewMobilityQueen    mid     4 ->    15.1   end    22 ->    51.7
+  ewCenterPAtts      mid    73 ->     7.8   end    57 ->    21.7
+  ewCenterNAtts      mid    33 ->    84.2   end     0 ->   -25.7
+  ewCenterBAtts      mid    98 ->   107.3   end     0 ->   -21.9
+  ewCenterRAtts      mid    14 ->    40.3   end    22 ->    25.8
+  ewCenterQAtts      mid    13 ->    14.8   end    53 ->   103.5
+  ewCenterKAtts      mid     0 ->   -34.8   end    40 ->    48.2
+  ewCenterNOcc       mid   130 ->   102.3   end     0 ->    37.9
+  ewSpace            mid     1 ->     0.2   end     0 ->    -0.5
+  ewAdvAtts          mid     0 ->   -14.4   end    12 ->    29.8
+  ewWeakSq           mid   -32 ->   -16.0   end     0 ->   -10.3
+  ewWeakSqA          mid   100 ->   116.2   end     0 ->    -3.0
+  ewIsolPawns        mid   -36 ->   -34.3   end  -113 ->   -48.9
+  ewIsolPassed       mid   -63 ->  -107.2   end  -143 ->  -197.5
+  ewBackPawns        mid  -108 ->  -116.8   end  -141 ->   -90.5
+  ewBackPOpen        mid   -21 ->   -13.2   end   -27 ->   -63.5
+  ewEnpHanging       mid   -19 ->    -5.9   end   -27 ->   -54.3
+  ewEnpEnPrise       mid   -29 ->   -41.6   end   -26 ->    -9.9
+  ewEnpAttacked      mid    -2 ->    -0.5   end   -14 ->   -22.0
+  ewWepTotal         mid   150 ->    98.1   end     0 ->    92.7
+  ewWepAttacked      mid     0 ->   -20.4   end   200 ->   235.8
+  ewBishopPair       mid   386 ->   324.0   end   323 ->   300.7
+  ewBishopPawns      mid   -25 ->   -41.2   end   -54 ->   -41.7
+  ewRookPawn         mid   -44 ->   -86.0   end   -32 ->     5.2
+  ewAdvPawn5         mid    14 ->    -5.9   end   106 ->   145.7
+  ewAdvPawn6         mid   352 ->   232.2   end   333 ->   359.0
+  ewPawnBlockP       mid  -112 ->   -97.5   end   -92 ->  -117.2
+  ewPawnBlockO       mid   -23 ->    -4.6   end   -26 ->   -40.3
+  ewPawnBlockA       mid   -19 ->   -32.5   end   -69 ->  -174.4
+  ewPassPawnLev      mid     2 ->     1.5   end     8 ->     8.6
+
+PST of hce-tuned+pst (cp, owner's view), occurrence weighted mean per piece (material shift):
+  P: mid    -4.0  end    -5.0
+  N: mid    -3.7  end    -2.6
+  B: mid    -3.8  end    -5.3
+  R: mid     1.3  end    -5.9
+  Q: mid     0.3  end     1.8
+  K: mid     6.6  end     8.9
+  P  mid (cp)                                  end (cp)
+  8     .    .    .    .    .    .    .    .        .    .    .    .    .    .    .    .
+  7    16   44   33   32   12  -10   -0    5        8   27    1   10   11    1   13  -20
+  6     7   -8    2   -2    8   25   17   35       25   32   17    4   10   27   26   -1
+  5    -7    0   -3   -9  -15   -3  -14   14       20    5   10   -4   -8   -2    5   -1
+  4    -6  -20   -3   -5   -3   -5   -4  -26        8    6   -7  -22   -8  -12   -9   -6
+  3   -11  -19   -4   -9    3    5    9   -9        1   -9   -2    1   -5   -6  -18  -16
+  2    -1  -19  -10  -16    5   16    5  -17       -0    5    8   -2    1   -2  -17  -19
+  1     .    .    .    .    .    .    .    .        .    .    .    .    .    .    .    .
+  N  mid (cp)                                  end (cp)
+  8    -9   -3    2   -8   -4    1   -0  -14       -8    1   -6  -15    2   -1   -2  -22
+  7    -7   11    7   13   25   17    3   -3       -5    2   13    5    8  -10    0   -9
+  6     6   -3   -2    4    4   19    8   12        5    7   -2   14    7  -18   -4   -7
+  5    31   22    7   14   -5   -0    2   25       -1   13    4   19    7   -4  -11   -4
+  4    15   -0    5   -7   -3    7   -0    5        3    4    5   11   16  -11   12   -5
+  3     1   -1  -17   -9  -10   -7   -8   13      -12   -0   -9   -4  -15  -21    2    3
+  2   -36   -2   -3    1  -13   -1   -0   -6      -11  -16    4    6   14   -7   -4  -15
+  1   -20  -21  -25  -11    2  -19  -18   16      -16   -4  -20   -4  -11  -12  -17    4
+  B  mid (cp)                                  end (cp)
+  8    -1    3    3   -8    1   -5   -5  -14       -3   17    9   -3   -2    5  -13    3
+  7    -6   -8  -15  -12  -10    9  -18  -31       -1    7    4   -6   10   -2    5   -6
+  6     8  -11   12    5   -3    5    4    3        1    9    5    1   -9    7    4   14
+  5   -18   -7   -4    8  -12   -8  -17   -6       13   10    7  -11    1  -14    7    1
+  4    12   -5   11   -6   -3  -13    7   10        5   -0   -6  -11  -15   10  -27  -12
+  3     4   19   -7   -5   -1   18    8   11        4   -6    9   -9   -3  -17   -6  -15
+  2    36    7  -16  -18  -13    0    6  -10       -5  -10  -18   -1   -9   -9  -17  -17
+  1    -9    2  -14    0  -11  -11   -5  -21       -6  -14   -1   -1  -14  -14  -14   -4
+  R  mid (cp)                                  end (cp)
+  8    -5   -3  -14    9   -3    3   -0    0        6    5   11    8    5   16    3    4
+  7    -3  -15   -7   -2   -1   -4    0   16       -0    8    2    6   -1    5    7    1
+  6     9    5  -15   24   19    5   12   14       -0    6    1    2    3  -10    7    2
+  5    -1  -12    7    8    8   15   -1    2       -8   -0   -3    8   -7   -6   -5   -4
+  4   -11   -7  -19  -11    6   -0   -1  -24       -0    1    2    6   -2    2    7   -5
+  3   -11  -17  -23    5  -12   -7   12   13        6    7    4    1    2    2    6    3
+  2   -10  -15   -9   -5   18    7  -10  -26       -3   -6   -7   -7  -17   -3  -12    5
+  1     5    3    2    8   16    5   -0  -19       -8  -18   -8   -9  -22   -7   -4  -18
+  Q  mid (cp)                                  end (cp)
+  8    -5  -10   -3   -8   -1    4   -6    3       -1   -9    2    4    9    8   -6    3
+  7   -16   -5   -8   -4    6   14    2   27        3    8   11    4    5   14    5   12
+  6     1    1    8   -9    1   25    7  -15       13   -2   -2    5    6    3    0   -1
+  5    -3   -3    6    1    1    1   10   13       -1   -3    7    0   -2    1    1   12
+  4    -2  -10   -2   -4   -4    7   12   27       -2   -5   -6   -4   -1   15    1    4
+  3    -7    1   -2  -12    2    9   15    7       -3    2    2    0    3    9    7    3
+  2   -19    5   -3    8    4   18   -6    4        4    6   -2   -9    0    0    1   -3
+  1     2    4    1   -3   -2   -3   -5   14       -1   -2   -4   11    6  -20   -3   -0
+  K  mid (cp)                                  end (cp)
+  8    -4   -1   -1   -3    0   -1   -1   -5      -35  -12  -13  -15   -3   -3   -4  -24
+  7    -2    1    1   -1   -4   -1   -0    1      -17  -13    6   -6  -15    7   13   -6
+  6     0    3    6    0    3    4    4   -2      -16   -3  -10   -7    4   13   19    0
+  5    -3    2    2    7   -1    4    1   -3      -21   -6  -12  -14  -10    7   10   13
+  4    -3   -8   -4    0   10    0    1  -21       -4  -17   -9  -11   -6   11   13   -2
+  3    -5  -24  -15   -5    4    7    4  -11       -9   -5    6    5    9   14   17   13
+  2    -8    4  -24  -29   -7   10   21   18       -8   19   16   20   16   18   16   21
+  1    -3   20   22   -8   11  -11   20   27       -3   -1   14    5   -3   15   17  -11
+
+HCE weights of hce-tuned+pst (compiled -> refitted):
+  ewMaterialDiff     mid     8 ->     7.2   end     8 ->     9.5
+  ewKingSafe         mid     1 ->     1.2   end     0 ->    -0.1
+  ewKingOpen         mid     2 ->     2.8   end     4 ->     2.5
+  ewKingPlaceCent    mid     8 ->     3.5   end     1 ->     1.0
+  ewKingPlacePwns    mid     0 ->    -1.9   end     4 ->     6.4
+  ewKingPawn         mid     3 ->   -43.5   end    50 ->    91.9
+  ewKingThreat       mid     0 ->    52.0   end   300 ->   200.3
+  ewKingProtB        mid    -8 ->   -13.1   end   -12 ->   -56.6
+  ewKingProtN        mid   -16 ->   -47.3   end   -28 ->   -62.7
+  ewRookHOpen        mid   183 ->   158.5   end   180 ->    76.4
+  ewRookConn         mid    98 ->    13.1   end     1 ->   100.8
+  ewRookKingFile     mid    96 ->   -94.7   end     0 ->   116.9
+  ewRookKingRank     mid   160 ->  -116.4   end   140 ->   168.3
+  ewMobilityKnight   mid    70 ->    78.4   end    54 ->    34.8
+  ewMobilityBishop   mid    67 ->    48.5   end    32 ->    23.1
+  ewMobilityRook     mid    32 ->    33.9   end    40 ->    50.5
+  ewMobilityQueen    mid     4 ->     2.7   end    22 ->    59.9
+  ewCenterPAtts      mid    73 ->   -17.1   end    57 ->    55.8
+  ewCenterNAtts      mid    33 ->    35.0   end     0 ->   -79.2
+  ewCenterBAtts      mid    98 ->   107.4   end     0 ->     0.2
+  ewCenterRAtts      mid    14 ->    26.7   end    22 ->     8.3
+  ewCenterQAtts      mid    13 ->    28.2   end    53 ->    82.1
+  ewCenterKAtts      mid     0 ->   -13.7   end    40 ->    51.3
+  ewCenterNOcc       mid   130 ->   175.7   end     0 ->    94.7
+  ewSpace            mid     1 ->     0.8   end     0 ->    -0.1
+  ewAdvAtts          mid     0 ->   -14.5   end    12 ->    17.8
+  ewWeakSq           mid   -32 ->    -7.9   end     0 ->    -1.1
+  ewWeakSqA          mid   100 ->   118.1   end     0 ->   -25.3
+  ewIsolPawns        mid   -36 ->   -62.0   end  -113 ->   -60.8
+  ewIsolPassed       mid   -63 ->  -130.0   end  -143 ->  -204.3
+  ewBackPawns        mid  -108 ->  -109.3   end  -141 ->   -89.8
+  ewBackPOpen        mid   -21 ->   -14.3   end   -27 ->   -65.2
+  ewEnpHanging       mid   -19 ->    -5.3   end   -27 ->   -49.0
+  ewEnpEnPrise       mid   -29 ->   -36.9   end   -26 ->   -18.7
+  ewEnpAttacked      mid    -2 ->    -1.1   end   -14 ->   -19.0
+  ewWepTotal         mid   150 ->    72.8   end     0 ->    81.2
+  ewWepAttacked      mid     0 ->   -23.2   end   200 ->   236.1
+  ewBishopPair       mid   386 ->   274.9   end   323 ->   341.8
+  ewBishopPawns      mid   -25 ->   -45.3   end   -54 ->   -47.6
+  ewRookPawn         mid   -44 ->   -39.5   end   -32 ->    34.6
+  ewAdvPawn5         mid    14 ->   -42.3   end   106 ->    69.7
+  ewAdvPawn6         mid   352 ->    75.1   end   333 ->   154.9
+  ewPawnBlockP       mid  -112 ->   -86.2   end   -92 ->   -98.0
+  ewPawnBlockO       mid   -23 ->   -45.3   end   -26 ->   -16.0
+  ewPawnBlockA       mid   -19 ->   -28.1   end   -69 ->  -161.1
+  ewPassPawnLev      mid     2 ->     1.1   end     8 ->     8.1
