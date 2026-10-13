@@ -1,10 +1,28 @@
 # BarbarossaTuning
 
-Scripts for tuning and measuring the Barbarossa HCE evaluation (TuneSGD + SelfPlay), written during the
-October 2026 tuning study. See `TUNING.md` in the Barbarossa repository for findings and the reasoning.
+Tools for tuning and measuring the hand-crafted evaluation (HCE) of the chess engine
+[Barbarossa](https://github.com/nionita/Barbarossa): data preparation, offline fits of the evaluation
+weights (and of a piece square table) in Python, and node-limited self-play matches to measure the
+strength of a candidate against the compiled weights.
 
-Working folder of the study: `C:\Learn\Tune\cxig` (the default paths in the scripts point there).
-Binaries: `C:\astra\TuneSGD\TuneSGD-<branch>.exe`, `C:\astra\SelfPlay\SelfPlay-<branch>.exe`.
+The main result so far: fitted on positions from the engine's own games with the real game results
+(on-policy data), the refitted weights together with a piece square table gained about +28 Elo in
+node-limited self-play (see `results/hvar` and the procedure below). Findings and reasoning are in
+`TUNING.md` of the Barbarossa repository.
+
+Requirements:
+- Barbarossa executables built from its `hvar` branch: `TuneSGD` (export, `-X`) and `SelfPlay`
+  (matches, data collection with `--data`).
+- Python 3 with numpy, scipy and pandas (pyarrow for fast CSV reading); `prep_data.py` and
+  `hv_prep_sp.py` need only the standard library.
+- Windows PowerShell for the match scripts (`*.ps1`).
+
+The default paths in the scripts are those of the author's machines (working folders under
+`C:\Learn\Tune`, binaries under `C:\astra`); pass your own paths as arguments.
+
+License: MIT, see `LICENSE`.
+
+## Scripts
 
 | Script | Purpose |
 |---|---|
