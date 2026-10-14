@@ -57,9 +57,9 @@ if ((Test-Path -LiteralPath $groupDir) -and -not $Force) {
 }
 
 if ($Config) {
-# The whole config: its value names (weights mid./end., PST pst.) for the summary
+# The whole config: its value names (weights mid./end., PST pst., eval parameters) for the summary
 $wanted = @(Get-Content -LiteralPath $Config |
-    ForEach-Object { if ($_ -match '^\s*((?:mid|end|pst)\.[\w.]+)\s*=') { $Matches[1] } })
+    ForEach-Object { if ($_ -match '^\s*([A-Za-z][\w.]*)\s*=') { $Matches[1] } })
 if ($wanted.Count -eq 0) { throw "No values found in $Config" }
 New-Item -ItemType Directory -Force -Path $matchDir | Out-Null
 $cfgLines = @("-- group ${Group}: config $Config") + @(Get-Content -LiteralPath $Config)

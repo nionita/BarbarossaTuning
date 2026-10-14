@@ -39,7 +39,7 @@ if (-not $Config -and -not $All -and $Params.Count -eq 0) { throw "Give -Params,
 if ($Config) {
     if (-not (Test-Path -LiteralPath $Config -PathType Leaf)) { throw "Config not found: $Config" }
     $names = @(Get-Content -LiteralPath $Config |
-        ForEach-Object { if ($_ -match '^\s*((?:mid|end|pst)\.[\w.]+)\s*=') { $Matches[1] } })
+        ForEach-Object { if ($_ -match '^\s*([A-Za-z][\w.]*)\s*=') { $Matches[1] } })
 } elseif ($All) {
     $names = @(Get-Content -LiteralPath $Source |
         ForEach-Object { if ($_ -match '^\s*((?:mid|end)\.\w+)\s*=') { $Matches[1] } })
