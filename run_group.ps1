@@ -113,13 +113,23 @@ Write-Host "$Exe $($spArgs -join ' ')"
 Write-Host "Group ${Group}: $($wanted.Count) values"
 $start = Get-Date
 [System.IO.File]::WriteAllText($logFile, "")
-& $Exe @spArgs | ForEach-Object {
-    Add-Content -LiteralPath $logFile -Value $_ -Encoding utf8
-    if ($_ -match '^(Games|WDL):') { Write-Host $_ }
+# stderr of SelfPlay goes into the log too (error messages of a crashing shard); in PowerShell 5.1 the
+# redirected stderr lines are error records, which would stop the script with ErrorActionPreference Stop
+$eap = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+& $Exe @spArgs 2>&1 | ForEach-Object {
+    $line = "$_"
+    Add-Content -LiteralPath $logFile -Value $line -Encoding utf8
+    if ($line -match '^(Games|WDL):') { Write-Host $line }
 }
 $code = $LASTEXITCODE
+$ErrorActionPreference = $eap
 $minutes = ((Get-Date) - $start).TotalMinutes
-if ($code -ne 0) { throw "SelfPlay failed with exit code $code, see $logFile" }
+if ($code -ne 0) {
+    $failText = "SelfPlay failed with exit code $code after $('{0:N1}' -f $minutes) minutes, see $logFile"
+    [System.IO.File]::WriteAllText((Join-Path $groupDir "failed.txt"), $failText + "`n", $noBom)
+    throw $failText
+}
 
 # The last WDL line is from the candidate's point of view: (wins, draws, losses)
 $wdl = Select-String -LiteralPath $logFile -Pattern '(?:WDL|End result):\s*\((\d+),\s*(\d+),\s*(\d+)\)' |

@@ -17,7 +17,11 @@ $noBom = New-Object System.Text.UTF8Encoding($false)
 $w = 0.0; $d = 0.0; $l = 0.0
 foreach ($g in ($Groups | ForEach-Object { $_ -split "," } | Where-Object { $_ })) {
     $f = Join-Path (Join-Path $Root $g) "result.txt"
-    if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { throw "No result yet: $f" }
+    if (-not (Test-Path -LiteralPath $f -PathType Leaf)) {
+        $failed = Join-Path (Join-Path $Root $g) "failed.txt"
+        if (Test-Path -LiteralPath $failed -PathType Leaf) { throw "Shard $g failed: $(Get-Content -LiteralPath $failed)" }
+        throw "No result yet: $f"
+    }
     $line = Select-String -LiteralPath $f -Pattern '^WDL:\s*(\d+)\s*/\s*(\d+)\s*/\s*(\d+)' | Select-Object -First 1
     if (-not $line) { throw "No WDL line in $f" }
     $m = $line.Matches[0].Groups
