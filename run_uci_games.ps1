@@ -57,7 +57,7 @@ New-Item -ItemType Directory -Force $Root | Out-Null
 if ($Start -le 0) {
     $Start = if (Test-Path $nextFile) { [int](Get-Content $nextFile) } else { 1 }
 }
-$used = $rounds * $Opponents.Count                  # at most one opening per pair of games
+$used = $rounds                                     # gauntlet: one opening per round, for all opponents
 Set-Content -Path $nextFile -Value ($Start + $used)
 
 $eng = Join-Path $dir "eng"
@@ -77,7 +77,7 @@ $fcArgs = @("-engine", "cmd=$Barbarossa", "name=Barbarossa", "args=-l 5 -d", "di
 )
 
 Set-Content -Path (Join-Path $dir "command.txt") -Value ("`"$FastChess`" " + ($fcArgs -join " "))
-Set-Content -Path (Join-Path $dir "openings.txt") -Value "$Openings start $Start, up to $used openings"
+Set-Content -Path (Join-Path $dir "openings.txt") -Value "$Openings start $Start, $used openings"
 Write-Host "$Name : $($rounds * 2 * $Opponents.Count) games ($rounds rounds x 2 x $($Opponents.Count) opponents), tc $Tc,"
 Write-Host "  concurrency $Concurrency, openings from $Start, output $dir"
 
