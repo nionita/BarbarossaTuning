@@ -36,6 +36,15 @@ $known = @{
     "Admete"  = "Other\admete_1.5.0_windows_x86-64.exe"
     "Odonata" = "Other\odonata-0.5.1-windows-modern.exe"
 }
+# UCI options per engine (checked with "uci"; all search with 1 thread by default): 16 MB hash like
+# Barbarossa (its minimum), threads 1 explicitly, own books off (games start from our openings)
+$engineOptions = @{
+    "ECE12"   = @()
+    "ECE-X2"  = @("option.ECE-X2 Threads=1", "option.ECE-X2 Hash Size=16", "option.ECE-X2 Use Book=false")
+    "CT800"   = @("option.Hash=16", "option.OwnBook=false")
+    "Admete"  = @("option.Hash=16")
+    "Odonata" = @("option.Threads=1", "option.Hash=16")
+}
 
 $dir = Join-Path $Root $Name
 if (Test-Path $dir) { throw "$dir exists already: choose another name" }
@@ -48,7 +57,7 @@ foreach ($o in $Opponents) {
     if (-not $known.ContainsKey($o)) { throw "unknown opponent $o (known: $($known.Keys -join ', '))" }
     $exe = Join-Path $EnginesDir $known[$o]
     if (-not (Test-Path $exe)) { throw "not found: $exe" }
-    $engineArgs += @("-engine", "cmd=$exe", "name=$o", "dir=$(Split-Path $exe)")
+    $engineArgs += @("-engine", "cmd=$exe", "name=$o", "dir=$(Split-Path $exe)") + $engineOptions[$o]
 }
 
 $rounds = [int][math]::Ceiling($Games / (2.0 * $Opponents.Count))
