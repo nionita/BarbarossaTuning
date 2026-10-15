@@ -1,12 +1,14 @@
 # Gauntlet of Barbarossa against other engines with fastchess, for training data from the games
-# (Barbarossa's Origin log lines + the PGN results, joined later by uci_data.py).
+# (Barbarossa option -d: the search leaf of every move, joined with the PGN results by uci_data.py).
 #
 # Creates <Root>\<Name>\ with:
-#   logs\       working directory of Barbarossa: its log files (one per process, Info level: no -l 5!)
+#   eng\        working directory of Barbarossa: one .data file per process (normal log off: -l 5)
 #   games.pgn   the games (results for the join)
 #   fastchess.log, command.txt (the full fastchess command), openings.txt (the opening range used)
 # The openings are taken sequentially; <Root>\next-opening.txt remembers where the next run starts, so that
-# runs do not repeat openings.
+# runs do not repeat openings. Afterwards:
+#   python uci_data.py --data <Root>\<Name>\eng --pgn <Root>\<Name>\games.pgn --engine Barbarossa
+#       --out <data dir> --name <Name> --shards 4
 #
 # Example (MEMO):
 #   .\run_uci_games.ps1 -Name ug-test1 -Games 100
@@ -17,7 +19,7 @@ param(
     [string[]]$Opponents = @("ECE-X2", "CT800", "Admete", "Odonata"),   # ECE12 is much weaker (15% in ug-test1)
     [string]$Tc = "10+0.1",
     [int]$Concurrency = 6,
-    [string]$Barbarossa = "C:\Engines\Barbarossa\Barbarossa-0.8.0-fold.exe",
+    [string]$Barbarossa = "C:\Engines\Barbarossa\Barbarossa-0.8.0-ucidat.exe",   # needs option -d
     [string]$EnginesDir = "C:\Engines",
     [string]$Openings = "C:\Learn\Tune\hvar\open\open-moves-uniq-fm1.fen",
     [int]$Start = 0,                                # first opening (1-based); 0 = from next-opening.txt
@@ -58,11 +60,11 @@ if ($Start -le 0) {
 $used = $rounds * $Opponents.Count                  # at most one opening per pair of games
 Set-Content -Path $nextFile -Value ($Start + $used)
 
-$logs = Join-Path $dir "logs"
-New-Item -ItemType Directory -Force $logs | Out-Null
+$eng = Join-Path $dir "eng"
+New-Item -ItemType Directory -Force $eng | Out-Null
 $pgn = Join-Path $dir "games.pgn"
 
-$fcArgs = @("-engine", "cmd=$Barbarossa", "name=Barbarossa", "dir=$logs") + $engineArgs + @(
+$fcArgs = @("-engine", "cmd=$Barbarossa", "name=Barbarossa", "args=-l 5 -d", "dir=$eng") + $engineArgs + @(
     "-each", "tc=$Tc", "proto=uci",
     "-tournament", "gauntlet", "-seeds", "1",
     "-rounds", "$rounds", "-games", "2", "-repeat",
