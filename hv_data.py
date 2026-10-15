@@ -29,7 +29,8 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-FIXED_COLS = ["fen", "score", "result", "eval", "phase", "scale", "m50", "dmid", "dend", "const"]
+FIXED_COLS = ["fen", "score", "result", "eval", "phase", "scale", "m50", "dmid", "dend", "const",
+              "eflat", "eend", "special", "spscore", "sknow"]   # the last 5 only in newer exports
 PIECE_INDEX = {"p": 0, "n": 1, "b": 2, "r": 3, "q": 4, "k": 5}
 PIECE_NAMES = "PNBRQK"
 N_PST = 6 * 64
