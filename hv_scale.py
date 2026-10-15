@@ -148,9 +148,21 @@ class Model:
         self.Xg = m50_design(self.m50)
         self.xm = np.minimum(self.m50, 99.5) / 100.0
         self.ps = self.Xs.shape[1]
-        self.pg = {"table": self.Xg.shape[1], "power": 1, "quad": 2, "linear": 0, "none": 0}[m50mode]
+        # "knee<M>": two linear segments (0, 1) -> (M, h) -> (100, 0), h fitted, M given (e.g. knee30)
+        self.knee = float(m50mode[4:]) if m50mode.startswith("knee") else None
+        if self.knee is not None:
+            m = np.minimum(self.m50, 100).astype(np.float64)
+            lo = m <= self.knee
+            # g = a + h * dg_dh with a and dg_dh per row
+            self.k_a = np.where(lo, 1.0 - m / self.knee, 0.0)
+            self.k_dh = np.where(lo, m / self.knee, (100.0 - m) / (100.0 - self.knee))
+            self.pg = 1
+        else:
+            self.pg = {"table": self.Xg.shape[1], "power": 1, "quad": 2, "linear": 0, "none": 0}[m50mode]
 
     def g_of(self, b: np.ndarray) -> np.ndarray:
+        if self.knee is not None:
+            return np.maximum(self.k_a + b[0] * self.k_dh, 1e-6)
         if self.m50mode == "table":
             return np.exp(self.Xg @ b)
         if self.m50mode == "power":
@@ -163,6 +175,8 @@ class Model:
 
     def g_grad(self, e: np.ndarray, g: np.ndarray, ge: np.ndarray) -> np.ndarray:
         """Gradient of the loss to the parameters of g, from dL/de (ge), e and g (e is proportional to g)."""
+        if self.knee is not None:
+            return np.array([float(np.dot(ge * e / g, self.k_dh))])
         if self.m50mode == "table":
             return self.Xg.T @ (ge * e)
         if self.m50mode == "power":
@@ -190,6 +204,8 @@ class Model:
             bd[10:2 + self.ps] = [(None, 0.0)] * (self.ps - 8)
         if self.m50mode == "power":
             bd[2 + self.ps] = (0.0, None)
+        if self.knee is not None:
+            bd[2 + self.ps] = (0.0, 1.0)
         return bd
 
     def evals(self, x: np.ndarray):
@@ -282,6 +298,8 @@ def main() -> int:
             x0[2 + mt.ps] = 1.0
         elif mode == "quad":
             x0[2 + mt.ps] = -0.78
+        elif mt.knee is not None:
+            x0[2 + mt.ps] = 1.0 - mt.knee / 128.0
         res = minimize(mt.fun, x0, jac=True, method="L-BFGS-B", bounds=mt.bounds(),
                        options={"maxiter": 3000, "ftol": 1e-13})
         x = res.x
@@ -293,6 +311,8 @@ def main() -> int:
             print(f"   50 moves scale (1 - m50 / 100) ^ {b[0]:.3f}")
         elif mode == "quad":
             print(f"   50 moves scale 1 {b[0]:+.3f} x {b[1]:+.3f} x^2 (x = m50 / 100)")
+        elif mt.knee is not None:
+            print(f"   50 moves scale: 1 at 0, {b[0]:.3f} at {mt.knee:.0f}, 0 at 100 (linear between)")
         share = np.asarray(mt.Xs.sum(axis=0)).ravel() / len(tr) * 100
         for lab, aj, sh in zip(mt.labels, a, share):
             print(f"   {lab:30s} {sh:5.1f}%  factor {np.exp(aj):5.2f}  ({64 * np.exp(aj):4.0f} / 64)")
