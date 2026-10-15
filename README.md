@@ -14,7 +14,7 @@ Requirements:
 - Barbarossa executables built from its `hvar` branch: `TuneSGD` (export, `-X`) and `SelfPlay`
   (matches, data collection with `--data`).
 - Python 3 with numpy, scipy and pandas (pyarrow for fast CSV reading); `prep_data.py` and
-  `hv_prep_sp.py` need only the standard library.
+  `hv_prep_sp.py` need only the standard library, `uci_data.py` needs python-chess.
 - Windows PowerShell for the match scripts (`*.ps1`).
 
 The default paths in the scripts are those of the author's machines (working folders under
@@ -39,6 +39,8 @@ License: MIT, see `LICENSE`.
 | `hv_cfg.py` | candidate config from `hv_fit.py` output: refitted HCE weights and / or PST (`pst.*` lines), `--placement` |
 | `hv_cand_eval.py` | yardstick: loss of candidate evals on held-out on-policy games with real results, game block bootstrap |
 | `hv_decomp.py` | split a fitted PST into material part (per piece means) and placement, loss of each part |
+| `run_uci_games.ps1` | fastchess gauntlet of Barbarossa against other engines (PGN + Barbarossa's working directory) |
+| `uci_data.py` | Barbarossa's `-d` data files (or Info logs) + fastchess PGN -> files in the format of SelfPlay `--data` |
 
 ## On-policy tuning of the HCE (branch `hvar`, 2026-10-13)
 
@@ -95,3 +97,45 @@ Notes:
 - SelfPlay prints the SPRT / match verdict only to stdout; the scripts keep it in `match.stdout.txt`.
 - `-Scale` and `run_sweep.ps1` read the compiled values from `Struct\Weights.hs` of the Barbarossa checkout.
 - Existing group / run directories are never overwritten without `-Force`.
+
+## Data from games against other engines (branch `ucidat`, 2026-10-15)
+
+Barbarossa built from branch `ucidat` or later writes with `-d` per UCI search the leaf position that SelfPlay
+`--data` writes (the evaluated position of the last root iteration, its static score, the root score, the
+start position of the GUI's position command and the ply), into
+`barbarossa-<version>-<branch>-<start second>-<pid>.data` in its working directory: one file per engine
+process, about 16 KB per game. The game results come from the fastchess PGN; `uci_data.py` joins both.
+
+1. Games: Barbarossa with `"args=-l 5 -d"` (`-l 5`: no log, `-d`: data file), its own working directory per run
+   (all Barbarossa processes of a run may share it), a fresh PGN file per run (fastchess appends), no
+   adjudication (real results), openings with full move number 1. Template (MEMO, concurrency 8):
+
+       fastchess.exe -engine cmd=C:\Engines\Barbarossa\Barbarossa-0.8.0-ucidat.exe name=Barbarossa "args=-l 5 -d" dir=C:\Learn\Tune\uci\<run>\eng
+           -engine cmd=<opponent exe> name=<opponent> dir=<opponent dir> [-engine ... more opponents]
+           -each tc=10+0.1 proto=uci -tournament gauntlet -seeds 1 -rounds <r> -games 2 -repeat -concurrency 8
+           -openings file=C:\Learn\Tune\hvar\open\open-moves-uniq-fm1.fen format=epd order=sequential start=<first>
+           -pgnout file=C:\Learn\Tune\uci\<run>\games.pgn -recover -ratinginterval 50
+
+   (`run_uci_games.ps1` builds this command and keeps the opening offset between runs.)
+
+2. Join (name = the fastchess `name=` of Barbarossa), whole games round robin into `--shards` files:
+
+       python uci_data.py --data C:\Learn\Tune\uci\<run>\eng --pgn C:\Learn\Tune\uci\<run>\games.pgn --engine Barbarossa --out C:\Learn\Tune\uci\data --name <run>
+
+   It prints the games, the engine's moves, the rows written and what was dropped. The searches of a process
+   are cut into games (ucinewgame, start position, ply) and every game segment is matched as a whole to the
+   one PGN game with the same start position and the same root positions at the same plies.
+
+3. Then as for self-play data: `hv_prep_sp.py --src C:\Learn\Tune\uci\data --val <run>-s4 --out ...`, export
+   with `TuneSGD -X`, `hv_fit.py`.
+
+Notes:
+- Moves without a row: searches without a leaf (no root iteration found a new best path), mostly mate and
+  draw scores; in the test (20 games against `boas`, 10+0.1) 15% of the moves, 2.4% with normal scores
+  (SelfPlay: 6%, it resigns at -1200 and stops at mate in 1).
+- The games are played out to mate (no resignation): about 10% of the rows have |score| > 2000, which
+  `hv_prep_sp.py` drops (`--max-score`).
+- Fallback without `-d`: `--logs <dir>` reads the Info logs of a branch build started without `-l 5` (last
+  Origin line before each bestmove; 1.4 MB per game). Builds before `ucidat` name the log by the start second
+  only, so engines started in the same second write interleaved lines into one file: such logs give wrong
+  leaves (searches cut at another process's bestmove) and are not usable.
