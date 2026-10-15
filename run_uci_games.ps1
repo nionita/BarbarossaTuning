@@ -12,11 +12,13 @@
 #
 # Example (MEMO):
 #   .\run_uci_games.ps1 -Name ug-test1 -Games 100
-#   .\run_uci_games.ps1 -Name ug-a -Games 4000 -Opponents ECE-X2,Admete,Odonata,Weiawaga
+#   .\run_uci_games.ps1 -Name ug-a -Games 4800 -Opponents Tantabus,Luna
 param(
     [Parameter(Mandatory = $true)][string]$Name,
     [Parameter(Mandatory = $true)][int]$Games,      # total games (all opponents), rounded up to whole pairs
-    [string[]]$Opponents = @("ECE-X2", "Admete", "Odonata"),   # ECE12 (15% in ug-test1), CT800 (32% in ug-check): too weak
+    # Barbarossa scored 56-62% against ECE-X2, Admete, Odonata (ug-check), 46-60% against Tantabus, Luna,
+    # Weiawaga (ug-cand1); ECE12 (15% for it in ug-test1) and CT800 (32%) are too weak
+    [string[]]$Opponents = @("ECE-X2", "Admete", "Odonata", "Tantabus", "Luna", "Weiawaga"),
     [string]$Tc = "10+0.1",
     [int]$Concurrency = 6,
     [string]$Barbarossa = "C:\Engines\Barbarossa\Barbarossa-0.8.0-ucidat.exe",   # needs option -d
