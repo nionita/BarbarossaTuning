@@ -24,6 +24,7 @@ from collections import defaultdict
 import env_dlls  # noqa: F401  (before numpy)
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
 from scipy.optimize import minimize
 from scipy.special import expit
 
@@ -130,6 +131,116 @@ def fit_group(e: np.ndarray, t: np.ndarray, c0: float, u0: float) -> tuple[float
     return res.x[0] * 10.0, u0 * float(np.exp(res.x[1]))
 
 
+def pool(g_tr: np.ndarray, g_va: np.ndarray, min_share: float) -> tuple[np.ndarray, np.ndarray]:
+    """Groups below min_share (%) of the training rows (or not in the training data) become '(other)'."""
+    keys, counts = np.unique(g_tr, return_counts=True)
+    big = set(keys[counts >= min_share / 100 * len(g_tr)])
+    return (np.where(np.isin(g_tr, list(big)), g_tr, "(other)"),
+            np.where(np.isin(g_va, list(big)), g_va, "(other)"))
+
+
+def one_hot(names: list[str], groups: dict) -> tuple[sp.csr_matrix, sp.csr_matrix, list[str]]:
+    """One column per group of each descriptor (training and validation rows), and the column labels."""
+    mats_tr, mats_va, labels = [], [], []
+    for name in names:
+        g_tr, g_va = groups[name]
+        keys = list(np.unique(g_tr))
+        idx = {k: i for i, k in enumerate(keys)}
+        for g, mats in ((g_tr, mats_tr), (g_va, mats_va)):
+            col = np.array([idx[x] for x in g], dtype=np.int32)
+            mats.append(sp.csr_matrix((np.ones(len(g), np.float32), (np.arange(len(g)), col)),
+                                      shape=(len(g), len(keys))))
+        labels += [f"{name}: {k}" for k in keys]
+    return sp.hstack(mats_tr, format="csr"), sp.hstack(mats_va, format="csr"), labels
+
+
+class Joint:
+    """e' = e + c + X g (offsets, optional), u' = u exp(l + X b) (scales); weak ridge on g and b (the
+    one-hot columns of a descriptor sum to 1, collinear with c and l)."""
+
+    def __init__(self, X: sp.csr_matrix, e: np.ndarray, t: np.ndarray, u0: float, offsets: bool,
+                 lam: float = 1e-6):
+        self.X, self.e, self.t, self.u0, self.offsets, self.lam = X, e, t, u0, offsets, lam
+        self.p = X.shape[1]
+
+    def unpack(self, x: np.ndarray):
+        c, l = 10.0 * x[0], x[1]
+        b = x[2:2 + self.p]
+        g = 10.0 * x[2 + self.p:] if self.offsets else np.zeros(self.p)
+        return c, l, b, g
+
+    def size(self) -> int:
+        return 2 + self.p * (2 if self.offsets else 1)
+
+    def predict(self, x: np.ndarray, X: sp.csr_matrix, e: np.ndarray) -> np.ndarray:
+        c, l, b, g = self.unpack(x)
+        ee = e + c + X @ g
+        uu = self.u0 * np.exp(l + X @ b)
+        return expit(uu * ee)
+
+    def fun(self, x: np.ndarray):
+        c, l, b, g = self.unpack(x)
+        ee = self.e + c + self.X @ g
+        uu = self.u0 * np.exp(l + self.X @ b)
+        s = expit(uu * ee)
+        r = self.t - s
+        n = len(r)
+        gz = -2.0 * r * s * (1 - s) / n
+        ge = gz * uu                      # dL / de'
+        gl = gz * uu * ee                 # dL / d log u'
+        grad = np.zeros_like(x)
+        grad[0] = 10.0 * ge.sum()
+        grad[1] = gl.sum()
+        grad[2:2 + self.p] = self.X.T @ gl + 2 * self.lam * b
+        f = float(np.mean(r * r)) + self.lam * float(b @ b)
+        if self.offsets:
+            gg = g / 10.0
+            grad[2 + self.p:] = 10.0 * (self.X.T @ ge) + 2 * self.lam * gg
+            f += self.lam * float(gg @ gg)
+        return f * 1e3, grad * 1e3
+
+    def fit(self, x0: np.ndarray | None = None) -> np.ndarray:
+        x0 = np.zeros(self.size()) if x0 is None else x0
+        res = minimize(self.fun, x0, jac=True, method="L-BFGS-B", options={"maxiter": 2000, "ftol": 1e-12})
+        return res.x
+
+
+def joint_models(args, groups: dict, e_tr, t_tr, e_va, t_va, c: float, u: float, base: float) -> None:
+    names = [n.strip() for n in args.joint.split(",") if n.strip()]
+    for n in names:
+        if n not in groups:
+            raise SystemExit(f"unknown descriptor {n}; known: {', '.join(groups)}")
+    e_tr, e_va = e_tr + c, e_va + c         # the global calibration as the start
+
+    def run(sel: list[str], offsets: bool):
+        X_tr, X_va, labels = one_hot(sel, groups)
+        m = Joint(X_tr, e_tr, t_tr, u, offsets)
+        x = m.fit()
+        lv = float(np.mean((t_va - m.predict(x, X_va, e_va)) ** 2))
+        return 100 * (base - lv) / base, m, x, labels
+
+    print(f"\nJoint models of {', '.join(names)} (validation gain, % of the loss):")
+    for offsets in (False, True):
+        gain, m, x, labels = run(names, offsets)
+        print(f"  all, {'scale and offset' if offsets else 'scale only'}: {gain:+.3f}%", flush=True)
+    # the coefficients of the full model: k factor and offset per group
+    print("\nFull model (scale and offset): k = k0 * factor, offset in cp, per group (training share):")
+    X_tr, _, _ = one_hot(names, groups)
+    share = np.asarray(X_tr.sum(axis=0)).ravel() / X_tr.shape[0] * 100
+    c0, l, b, g = m.unpack(x)
+    for j, lab in enumerate(labels):
+        print(f"  {lab:40s} {share[j]:5.1f}%  k x {np.exp(-(l + b[j])):5.2f}  offset {c0 + g[j]:+6.1f}")
+    # greedy forward selection (scale and offset)
+    print("\nForward selection (scale and offset): validation gain after adding each descriptor")
+    chosen: list[str] = []
+    rest = list(names)
+    while rest:
+        best = max(((run(chosen + [n], True)[0], n) for n in rest))
+        chosen.append(best[1])
+        rest.remove(best[1])
+        print(f"  + {best[1]:16s} {best[0]:+.3f}%", flush=True)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--train", required=True, help="export directory (fit of the group offsets)")
@@ -138,6 +249,9 @@ def main() -> int:
     ap.add_argument("--min-share", type=float, default=0.3, help="groups below this share (%%) are pooled")
     ap.add_argument("--top", type=int, default=12, help="groups shown per descriptor (largest effect first)")
     ap.add_argument("--max-train", type=int, default=0, help="use only so many training rows (0 = all)")
+    ap.add_argument("--joint", default="",
+                    help="comma separated descriptors: joint model (scale and offset per group of each), the "
+                         "coefficients and a forward selection, instead of the tables")
     args = ap.parse_args()
 
     tr, va = read(args.train, args.max_score), read(args.val, args.max_score)
@@ -160,13 +274,15 @@ def main() -> int:
         df_["eval level"] = pd.cut(ev, [-1e9, -400, -200, -100, -50, -20, 20, 50, 100, 200, 400, 1e9]).astype(str)
     print("descriptors computed", flush=True)
 
+    groups = {name: pool(desc_tr[name].to_numpy(), desc_va[name].to_numpy(), args.min_share)
+              for name in desc_tr.columns}
+    if args.joint:
+        joint_models(args, groups, e_tr, t_tr, e_va, t_va, c, u, base)
+        return 0
+
     summary = []
     for name in desc_tr.columns:
-        g_tr, g_va = desc_tr[name].to_numpy(), desc_va[name].to_numpy()
-        keys, counts = np.unique(g_tr, return_counts=True)
-        small = set(keys[counts < args.min_share / 100 * len(g_tr)])
-        g_tr = np.where(np.isin(g_tr, list(small)), "(other)", g_tr)
-        g_va = np.where(np.isin(g_va, list(small)), "(other)", g_va)
+        g_tr, g_va = groups[name]
         p_new = p_va.copy()
         rows = []
         for key in np.unique(g_tr):

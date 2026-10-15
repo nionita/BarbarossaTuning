@@ -9,8 +9,9 @@ where s = sknow / 64 where the knowledge rule applies (fixed), else the product 
 descriptors of the position (stronger side = sign of the end game part for "end", of the eval for
 "all"): pawns of the stronger side (0 .. 7, 8 or more = 1), opposite coloured bishops (only bishops /
 with other pieces), the stronger side's pawns on one wing only, rook ending (R v R), queen ending
-(Q v Q), each a log factor fitted from 0; g(m50) is a table over buckets of 10 half moves (bucket 0 = 1),
-replacing (128 - m50) / 128. s0 = sknow / 64 or 1. Rows with a special eval (exact score in play) are
+(Q v Q), each a log factor fitted from 0; g(m50) replaces (128 - m50) / 128, by --m50: "power"
+(1 - m50 / 100) ^ p with p fitted, "quad" 1 + b x + c x^2 (x = m50 / 100), "table" over buckets of 10
+half moves (bucket 0 = 1), "linear" the old (128 - m50) / 128, "none" 1. s0 = sknow / 64 or 1. Rows with a special eval (exact score in play) are
 left out. Fitted on the training data, the loss reported on the validation data (first file
 selection, second test, as hv_fit.py). The tables are printed as factors and in units of 1/64.
 
@@ -122,8 +123,9 @@ def m50_design(m50: np.ndarray) -> sp.csr_matrix:
 class Model:
     """Loss and gradient of the "end" or "all" model on one data set."""
 
-    def __init__(self, kind: str, df: pd.DataFrame, info: np.ndarray):
+    def __init__(self, kind: str, df: pd.DataFrame, info: np.ndarray, m50mode: str = "power"):
         self.kind = kind
+        self.m50mode = m50mode
         self.t = df["result"].to_numpy() / 2.0
         self.flat = df["eflat"].to_numpy(np.float64)
         self.end = df["eend"].to_numpy(np.float64)
@@ -140,7 +142,31 @@ class Model:
         # the knowledge rows have a fixed s (no table factors) in the "end" model
         self.Xs = d.X if kind == "all" else sp.diags((~self.know).astype(np.float32)) @ d.X
         self.Xg = m50_design(self.m50)
-        self.ps, self.pg = self.Xs.shape[1], self.Xg.shape[1]
+        self.xm = np.minimum(self.m50, 99.5) / 100.0
+        self.ps = self.Xs.shape[1]
+        self.pg = {"table": self.Xg.shape[1], "power": 1, "quad": 2, "linear": 0, "none": 0}[m50mode]
+
+    def g_of(self, b: np.ndarray) -> np.ndarray:
+        if self.m50mode == "table":
+            return np.exp(self.Xg @ b)
+        if self.m50mode == "power":
+            return (1.0 - self.xm) ** b[0]
+        if self.m50mode == "quad":
+            return np.maximum(1.0 + b[0] * self.xm + b[1] * self.xm ** 2, 1e-4)
+        if self.m50mode == "linear":
+            return (128.0 - self.m50) / 128.0
+        return np.ones(len(self.m50))
+
+    def g_grad(self, e: np.ndarray, g: np.ndarray, ge: np.ndarray) -> np.ndarray:
+        """Gradient of the loss to the parameters of g, from dL/de (ge), e and g (e is proportional to g)."""
+        if self.m50mode == "table":
+            return self.Xg.T @ (ge * e)
+        if self.m50mode == "power":
+            return np.array([float(np.dot(ge * e, np.log(1.0 - self.xm)))])
+        if self.m50mode == "quad":
+            w = ge * e / g
+            return np.array([float(np.dot(w, self.xm)), float(np.dot(w, self.xm ** 2))])
+        return np.zeros(0)
 
     def size(self) -> int:
         return 2 + self.ps + self.pg
@@ -153,7 +179,7 @@ class Model:
     def evals(self, x: np.ndarray):
         _, _, a, b = self.parts(x)
         s = np.exp(self.Xs @ a)
-        g = np.exp(self.Xg @ b)
+        g = self.g_of(b)
         if self.kind == "end":
             s = np.where(self.know, self.s0, s)
             inner = self.flat + self.end * s
@@ -179,7 +205,7 @@ class Model:
         else:
             de_da = ge * e
         grad[2:2 + self.ps] = self.Xs.T @ de_da
-        grad[2 + self.ps:] = self.Xg.T @ (ge * e)
+        grad[2 + self.ps:] = self.g_grad(e, g, ge)
         return float(np.mean(r * r)) * 1e3, grad * 1e3
 
     def loss(self, x: np.ndarray) -> float:
@@ -209,6 +235,8 @@ def main() -> int:
     ap.add_argument("--val", required=True, help="directory with two exports: selection and test")
     ap.add_argument("--max-score", type=float, default=2000)
     ap.add_argument("--models", default="end,all")
+    ap.add_argument("--m50", default="power,table,quad,linear,none",
+                    help="forms of the 50 moves scale to fit (comma separated): power, quad, table, linear, none")
     args = ap.parse_args()
 
     trf = sorted(glob.glob(os.path.join(args.train, "*-exp.csv")))
@@ -220,22 +248,33 @@ def main() -> int:
     t_tr, t_va = tr["result"].to_numpy() / 2.0, va["result"].to_numpy() / 2.0
     base, c0, k0 = calib_loss(tr["eval"].to_numpy(float), t_tr, va["eval"].to_numpy(float), t_va)
     print(f"old    validation loss {base:.6f}  (c {c0:.1f}, k {k0:.1f})", flush=True)
-    for kind in [m for m in args.models.split(",") if m]:
-        mt, mv = Model(kind, tr, info_tr), Model(kind, va, info_va)
+    for kind, mode in [(k, m) for k in args.models.split(",") if k for m in args.m50.split(",") if m]:
+        mt, mv = Model(kind, tr, info_tr, mode), Model(kind, va, info_va, mode)
         x0 = np.zeros(mt.size())
         x0[0], x0[1] = c0 / 10.0, np.log(200.0 / k0)
-        # start g at the old linear 50 moves scale
-        for j in range(mt.pg):
-            x0[2 + mt.ps + j] = np.log((128 - 10 * (j + 1) - 5) / 128)
+        # start g at about the old linear 50 moves scale
+        if mode == "table":
+            for j in range(mt.pg):
+                x0[2 + mt.ps + j] = np.log((128 - 10 * (j + 1) - 5) / 128)
+        elif mode == "power":
+            x0[2 + mt.ps] = 1.0
+        elif mode == "quad":
+            x0[2 + mt.ps] = -0.78
         res = minimize(mt.fun, x0, jac=True, method="L-BFGS-B", options={"maxiter": 3000, "ftol": 1e-13})
         x = res.x
         lv = mv.loss(x)
         c, lu, a, b = mt.parts(x)
-        print(f"\n{kind:6s} validation loss {lv:.6f}  ({100 * (lv - base) / base:+.3f}% against old; c {c:.1f}, "
-              f"k {200 / np.exp(lu):.1f}, {res.nit} it)")
+        print(f"\n{kind} / m50 {mode}: validation loss {lv:.6f}  ({100 * (lv - base) / base:+.3f}% against old; "
+              f"c {c:.1f}, k {200 / np.exp(lu):.1f}, {res.nit} it)")
+        if mode == "power":
+            print(f"   50 moves scale (1 - m50 / 100) ^ {b[0]:.3f}")
+        elif mode == "quad":
+            print(f"   50 moves scale 1 {b[0]:+.3f} x {b[1]:+.3f} x^2 (x = m50 / 100)")
         share = np.asarray(mt.Xs.sum(axis=0)).ravel() / len(tr) * 100
         for lab, aj, sh in zip(mt.labels, a, share):
             print(f"   {lab:30s} {sh:5.1f}%  factor {np.exp(aj):5.2f}  ({64 * np.exp(aj):4.0f} / 64)")
+        if mode != "table":
+            continue
         print("   50 moves counter (factor, old (128 - m50) / 128 at the bucket middle):")
         print("     0-9: 1.00 (0.96)")
         for j, bj in enumerate(b):
