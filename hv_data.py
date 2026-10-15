@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import glob
 import os
+import re
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 
@@ -98,6 +99,8 @@ class Data:
     feats: np.ndarray       # N x 46 HCE features (float32)
     pst: sp.csr_matrix      # N x 384 PST features, +-1 (float32)
     files: list[str]
+    src: np.ndarray         # source index of every record (into sources; 0 when not given)
+    sources: list[str]      # source names (from the file names, see load)
 
     @property
     def n(self) -> int:
@@ -121,8 +124,22 @@ def read_weights(directory: str) -> dict[str, tuple[int, int]]:
     return {r.name: (int(r.mid), int(r.end)) for r in df.itertuples(index=False)}
 
 
-def load(files: list[str], max_score: float = 2000, workers: int = 8) -> Data:
-    """Load (and cache) the given export files and concatenate them."""
+def source_of(path: str, source_re: str | None) -> str:
+    """Source name of an export file: the first group of source_re matched on the file name ("all"
+    without a pattern). Records of one source (e.g. one opponent, or self-play) share an offset."""
+    if not source_re:
+        return "all"
+    m = re.search(source_re, os.path.basename(path))
+    if not m:
+        raise ValueError(f"{path}: file name does not match the source pattern {source_re}")
+    return m.group(1)
+
+
+def load(files: list[str], max_score: float = 2000, workers: int = 8, source_re: str | None = None,
+         sources: list[str] | None = None) -> Data:
+    """Load (and cache) the given export files and concatenate them. The source of each file comes
+    from its name (source_of); with sources given (e.g. those of the training data) the indices refer
+    to that list and an unknown source is an error."""
     if workers <= 1 or len(files) == 1:
         caches = [_parse_file(f) for f in files]
     else:
@@ -138,11 +155,19 @@ def load(files: list[str], max_score: float = 2000, workers: int = 8) -> Data:
     mats = [sp.csr_matrix((p["signs"].astype(np.float32), p["cols"].astype(np.int32), p["indptr"]),
                           shape=(len(p["result"]), N_PST)) for p in parts]
     pst = sp.vstack(mats, format="csr")
+    names_src = [source_of(f, source_re) for f in files]
+    if sources is None:
+        sources = sorted(set(names_src), key=names_src.index)     # in the order of the files
+    for f, s in zip(files, names_src):
+        if s not in sources:
+            raise ValueError(f"{f}: source {s} is not among {sources}")
+    cat["src"] = np.concatenate([np.full(len(p["result"]), sources.index(s), dtype=np.int16)
+                                 for p, s in zip(parts, names_src)])
     keep = np.abs(cat["score"]) <= max_score if max_score > 0 else np.ones(len(cat["score"]), bool)
     if not keep.all():
         cat = {k: v[keep] for k, v in cat.items()}
         pst = pst[keep]
-    return Data(names=names, pst=pst, files=list(files), **cat)
+    return Data(names=names, pst=pst, files=list(files), sources=list(sources), **cat)
 
 
 def pst_used(data: Data) -> np.ndarray:

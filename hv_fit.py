@@ -61,7 +61,8 @@ SPECS = {
 class Problem:
     """Loss and gradient of one model on one data set."""
 
-    def __init__(self, spec: Spec, d: hd.Data, q: float, kq: float, hscale: np.ndarray | None = None):
+    def __init__(self, spec: Spec, d: hd.Data, q: float, kq: float, hscale: np.ndarray | None = None,
+                 source_k: bool = False):
         self.spec = spec
         self.d = d
         self.q = q
@@ -72,7 +73,11 @@ class Problem:
             self.target = (1 - q) * self.target + q * expit(d.score / kq)
         self.nh = len(d.names) if spec.hce else 0
         self.np_ = hd.N_PST if spec.pst else 0
-        self.size = 2 + 2 * self.nh + 2 * self.np_
+        # per source (other than the first): an offset, and with source_k a factor of k (exp of a log)
+        self.source_k = source_k
+        self.ns = len(d.sources)
+        self.io = 2 + 2 * self.nh + 2 * self.np_
+        self.size = self.io + (self.ns - 1) * (2 if source_k else 1)
         self.lam = 0.0
         # Optimizer units of the HCE weights: one unit changes the eval by 8 cp RMS (the features have
         # very different magnitudes, a common unit makes the problem badly conditioned)
@@ -83,8 +88,10 @@ class Problem:
             self.hscale = np.where(rms > 1e-9, 8.0 / np.maximum(rms, 1e-9), W_SCALE)
 
     def on(self, d: hd.Data) -> "Problem":
-        """The same model (and parameter units) on other data."""
-        return Problem(self.spec, d, self.q, self.kq, self.hscale)
+        """The same model (and parameter units) on other data (with the same sources)."""
+        if d.sources != self.d.sources:
+            raise ValueError(f"sources {d.sources} differ from {self.d.sources}")
+        return Problem(self.spec, d, self.q, self.kq, self.hscale, self.source_k)
 
     def split(self, x: np.ndarray):
         c = C_SCALE * x[0]
@@ -95,6 +102,17 @@ class Problem:
         wp = x[i:i + 2 * self.np_].reshape(2, self.np_).T * W_SCALE if self.np_ else None
         return c, u, wh, wp
 
+    def sources(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Offset (cp, added to c) and log factor of u of every source; 0 for the first."""
+        co = np.zeros(self.ns)
+        ro = np.zeros(self.ns)
+        m = self.ns - 1
+        if m:
+            co[1:] = C_SCALE * x[self.io:self.io + m]
+            if self.source_k:
+                ro[1:] = x[self.io + m:self.io + 2 * m]
+        return co, ro
+
     def evals(self, x: np.ndarray) -> np.ndarray:
         d = self.d
         c, u, wh, wp = self.split(x)
@@ -103,26 +121,39 @@ class Problem:
             add += d.feats @ wh.astype(np.float32)
         if wp is not None:
             add += d.pst @ wp.astype(np.float32)
-        return self.base + c + d.dmid * add[:, 0] + d.dend * add[:, 1]
+        co, _ = self.sources(x)
+        return self.base + c + co[d.src] + d.dmid * add[:, 0] + d.dend * add[:, 1]
+
+    def scales(self, x: np.ndarray) -> np.ndarray:
+        """u = 1 / k of every record."""
+        _, u, _, _ = self.split(x)
+        _, ro = self.sources(x)
+        return u * np.exp(ro)[self.d.src]
 
     def loss(self, x: np.ndarray) -> float:
-        _, u, _, _ = self.split(x)
-        r = self.target - expit(u * self.evals(x))
+        r = self.target - expit(self.scales(x) * self.evals(x))
         return float(np.mean(r * r))
 
     def fun(self, x: np.ndarray):
         d = self.d
         c, u, wh, wp = self.split(x)
         e = self.evals(x)
-        s = expit(u * e)
+        ur = self.scales(x)
+        s = expit(ur * e)
         r = self.target - s
         n = d.n
         f = float(np.mean(r * r))
         gz = -2.0 * r * s * (1 - s) / n          # dL / d(u e)
-        ge = gz * u                              # dL / de
+        ge = gz * ur                             # dL / de
         grad = np.zeros_like(x)
         grad[0] = C_SCALE * ge.sum()
-        grad[1] = u * float(np.dot(gz, e))
+        gr = gz * ur * e                         # dL / d log u
+        grad[1] = float(gr.sum())
+        m = self.ns - 1
+        if m:
+            grad[self.io:self.io + m] = C_SCALE * np.bincount(d.src, weights=ge, minlength=self.ns)[1:]
+            if self.source_k:
+                grad[self.io + m:self.io + 2 * m] = np.bincount(d.src, weights=gr, minlength=self.ns)[1:]
         G = np.column_stack([ge * d.dmid, ge * d.dend]).astype(np.float32)
         i = 2
         if wh is not None:
@@ -155,7 +186,7 @@ def fit(prob: Problem, x0: np.ndarray, maxiter: int) -> tuple[np.ndarray, int]:
 def take(d: hd.Data, idx: np.ndarray) -> hd.Data:
     return replace(d, score=d.score[idx], result=d.result[idx], eval=d.eval[idx], phase=d.phase[idx],
                    scale=d.scale[idx], m50=d.m50[idx], dmid=d.dmid[idx], dend=d.dend[idx],
-                   const=d.const[idx], feats=d.feats[idx], pst=d.pst[idx])
+                   const=d.const[idx], feats=d.feats[idx], pst=d.pst[idx], src=d.src[idx])
 
 
 def sq_name(s: int) -> str:
@@ -192,6 +223,11 @@ def main() -> int:
     ap.add_argument("--max-score", type=float, default=2000, help="drop records with |score| above (0 = keep all)")
     ap.add_argument("--max-train", type=int, default=0, help="use only so many training records (0 = all)")
     ap.add_argument("--maxiter", type=int, default=3000, help="L-BFGS iterations per fit")
+    ap.add_argument("--sources", default="",
+                    help="regex with one group on the export file names: the source of the records (e.g. "
+                         "'^([^-]+)-' for r3-tr-01-filt-exp.csv -> r3); every source gets its own offset c")
+    ap.add_argument("--source-k", action="store_true",
+                    help="with --sources: also a k per source (relative to the first source)")
     args = ap.parse_args()
 
     models = [m for m in args.models.split(",") if m]
@@ -210,20 +246,30 @@ def main() -> int:
         print(s, flush=True)
         lines.append(s)
 
-    train = hd.load(hd.export_files(args.train), args.max_score)
+    sre = args.sources or None
+    train = hd.load(hd.export_files(args.train), args.max_score, source_re=sre)
     if 0 < args.max_train < train.n:
         train = take(train, np.arange(args.max_train))
     vfiles = hd.export_files(args.val)
+    srcs = train.sources
     if len(vfiles) > 1:
         h = len(vfiles) // 2
-        sel, test = hd.load(vfiles[:h], args.max_score), hd.load(vfiles[h:], args.max_score)
+        sel = hd.load(vfiles[:h], args.max_score, source_re=sre, sources=srcs)
+        test = hd.load(vfiles[h:], args.max_score, source_re=sre, sources=srcs)
     else:
-        v = hd.load(vfiles, args.max_score)
+        v = hd.load(vfiles, args.max_score, source_re=sre, sources=srcs)
         sel, test = take(v, np.arange(0, v.n, 2)), take(v, np.arange(1, v.n, 2))
     used = hd.pst_used(train)
     say(f"train {train.n:,} records ({len(train.files)} files), selection {sel.n:,}, test {test.n:,}; "
         f"q = {args.q}, max score {args.max_score}; PST columns used {int(used.sum())} / {hd.N_PST} "
         f"({time.time() - t0:.0f}s)")
+    if len(srcs) > 1:
+        cnt = np.bincount(train.src, minlength=len(srcs))
+        say(f"sources ({'offset and k' if args.source_k else 'offset'} each): "
+            + ", ".join(f"{s} {c:,}" for s, c in zip(srcs, cnt)))
+
+    def problem(spec: Spec) -> Problem:
+        return Problem(spec, train, args.q, args.kq, source_k=args.source_k)
 
     results: dict[str, dict] = {}
     xs: dict[str, np.ndarray] = {}
@@ -235,20 +281,30 @@ def main() -> int:
              "test": prob.on(test).loss(x),
              "k": 1 / u, "c": C_SCALE * x[0]}
         r.update(extra)
+        co, ro = prob.sources(x)
+        if prob.ns > 1:
+            r["sources"] = {s: {"c": r["c"] + float(co[j]), "k": r["k"] / math.exp(ro[j])}
+                            for j, s in enumerate(prob.d.sources)}
         results[name] = r
         xs[name] = x
         say(f"{name:14s} train {r['train']:.6f}  sel {r['sel']:.6f}  test {r['test']:.6f}  "
             f"k {r['k']:6.1f}  c {r['c']:6.1f}  " + "  ".join(f"{k} {v}" for k, v in extra.items())
             + f"  ({time.time() - t0:.0f}s)")
+        if prob.ns > 1:
+            say("    per source: " + ", ".join(f"{s} c {v['c']:.1f} k {v['k']:.1f}"
+                                               for s, v in r["sources"].items()))
 
     sigma2 = None
     for m in models:
         spec = SPECS[m]
-        prob = Problem(spec, train, args.q, args.kq)
+        prob = problem(spec)
         x0 = prob.x0()
-        # warm start from the fitted c, k of the baseline
+        # warm start from the fitted c, k (and source offsets) of the baseline
         if "hce" in xs and spec.base == "eval":
             x0[:2] = xs["hce"][:2]
+            nso = prob.size - prob.io
+            if nso:
+                x0[prob.io:] = xs["hce"][-nso:]
         if not spec.pst:
             x, nit = fit(prob, x0, args.maxiter)
             evaluate(m, prob, x, {"iter": nit})
@@ -256,7 +312,7 @@ def main() -> int:
                 sigma2 = results[m]["train"]
             continue
         if sigma2 is None:
-            sigma2 = Problem(SPECS["hce"], train, args.q, args.kq).loss(x0)
+            sigma2 = problem(SPECS["hce"]).loss(np.concatenate([x0[:2], x0[prob.io:]]))
         # ridge path from strong to weak prior, warm started, tau chosen on the selection part
         best = None
         x = x0
@@ -288,7 +344,7 @@ def main() -> int:
     for m in models:
         if m not in xs:
             continue
-        prob = Problem(SPECS[m], train, args.q, args.kq)
+        prob = problem(SPECS[m])
         _, _, wh, wp = prob.split(xs[m])
         if wp is not None:
             say()
