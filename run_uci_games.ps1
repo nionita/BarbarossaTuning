@@ -22,6 +22,7 @@ param(
     [string]$Tc = "10+0.1",
     [int]$Concurrency = 6,
     [string]$Barbarossa = "C:\Engines\Barbarossa\Barbarossa-0.8.0-ucidat.exe",   # needs option -d
+    [string]$Config = "",                           # config file for Barbarossa (-c), e.g. eval parameters
     [string]$EnginesDir = "C:\Engines",
     [string]$Openings = "C:\Learn\Tune\hvar\open\open-moves-uniq-fm1.fen",
     [int]$Start = 0,                                # first opening (1-based); 0 = from next-opening.txt
@@ -81,7 +82,12 @@ $eng = Join-Path $dir "eng"
 New-Item -ItemType Directory -Force $eng | Out-Null
 $pgn = Join-Path $dir "games.pgn"
 
-$fcArgs = @("-engine", "cmd=$Barbarossa", "name=Barbarossa", "args=-l 5 -d", "dir=$eng") + $engineArgs + @(
+$barArgs = "-l 5 -d"
+if ($Config) {
+    if (-not (Test-Path $Config)) { throw "not found: $Config" }
+    $barArgs += " -c $Config"
+}
+$fcArgs = @("-engine", "cmd=$Barbarossa", "name=Barbarossa", "args=$barArgs", "dir=$eng") + $engineArgs + @(
     "-each", "tc=$Tc", "proto=uci",
     "-tournament", "gauntlet", "-seeds", "1",
     "-rounds", "$rounds", "-games", "2", "-repeat",
