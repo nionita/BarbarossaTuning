@@ -8,7 +8,7 @@ strength of a candidate against the compiled weights.
 The main result so far: fitted on positions from the engine's own games with the real game results
 (on-policy data), the refitted weights together with a piece square table gained about +28 Elo in
 node-limited self-play (see `results/hvar` and the procedure below). Findings and reasoning are in
-`TUNING.md` of the Barbarossa repository.
+`TUNING.md` (state, lessons, ideas) and `TUNING-HISTORY.md` (all experiments) of the Barbarossa repository.
 
 Requirements:
 - Barbarossa executables built from its `hvar` branch: `TuneSGD` (export, `-X`) and `SelfPlay`
@@ -42,7 +42,7 @@ License: MIT, see `LICENSE`.
 
 ## On-policy tuning of the HCE (branch `hvar`, 2026-10-13)
 
-Results and reasoning: `TUNING.md` of the Barbarossa repository (findings 24-29). Working folder
+Results and reasoning: `TUNING-HISTORY.md` of the Barbarossa repository (findings 24-36). Working folder
 `C:\Learn\Tune\hvar`, `python` = `C:\Users\Nicu\miniconda3a\envs\jacob\python.exe`, binaries of branch `hvar`
 (`SelfPlay-hvar.exe`, `TuneSGD-hvar.exe`). The steps that gave `sp-both` (+27.9 Elo):
 
