@@ -123,9 +123,13 @@ def m50_design(m50: np.ndarray) -> sp.csr_matrix:
 class Model:
     """Loss and gradient of the "end" or "all" model on one data set."""
 
-    def __init__(self, kind: str, df: pd.DataFrame, info: np.ndarray, m50mode: str = "power"):
+    def __init__(self, kind: str, df: pd.DataFrame, info: np.ndarray, m50mode: str = "power",
+                 constrained: bool = False):
         self.kind = kind
         self.m50mode = m50mode
+        # constrained: all factors <= 1 and the pawn factors monotone (more pawns, not lower), by
+        # log pawn factor k = -(d_k + ... + d_7), d >= 0 (8 or more pawns: 1), other log factors <= 0
+        self.constrained = constrained
         self.t = df["result"].to_numpy() / 2.0
         self.flat = df["eflat"].to_numpy(np.float64)
         self.end = df["eend"].to_numpy(np.float64)
@@ -172,9 +176,21 @@ class Model:
         return 2 + self.ps + self.pg
 
     def parts(self, x: np.ndarray):
+        """Offset, log u, log factors of the table (from the steps when constrained), parameters of g."""
         c, lu = 10.0 * x[0], x[1]
-        a, b = x[2:2 + self.ps], x[2 + self.ps:]
+        a, b = x[2:2 + self.ps].copy(), x[2 + self.ps:]
+        if self.constrained:
+            a[:8] = -np.cumsum(a[:8][::-1])[::-1]
         return c, lu, a, b
+
+    def bounds(self) -> list:
+        bd = [(None, None)] * self.size()
+        if self.constrained:
+            bd[2:10] = [(0.0, None)] * 8
+            bd[10:2 + self.ps] = [(None, 0.0)] * (self.ps - 8)
+        if self.m50mode == "power":
+            bd[2 + self.ps] = (0.0, None)
+        return bd
 
     def evals(self, x: np.ndarray):
         _, _, a, b = self.parts(x)
@@ -204,7 +220,10 @@ class Model:
             de_da = ge * self.end * s * g          # d e / d a_j = end * s * g * X_j (s fixed on knowledge rows)
         else:
             de_da = ge * e
-        grad[2:2 + self.ps] = self.Xs.T @ de_da
+        ga = self.Xs.T @ de_da
+        if self.constrained:
+            ga[:8] = -np.cumsum(ga[:8])         # d L / d d_j = - sum over k <= j of d L / d a_k
+        grad[2:2 + self.ps] = ga
         grad[2 + self.ps:] = self.g_grad(e, g, ge)
         return float(np.mean(r * r)) * 1e3, grad * 1e3
 
@@ -237,6 +256,8 @@ def main() -> int:
     ap.add_argument("--models", default="end,all")
     ap.add_argument("--m50", default="power,table,quad,linear,none",
                     help="forms of the 50 moves scale to fit (comma separated): power, quad, table, linear, none")
+    ap.add_argument("--constrained", action="store_true",
+                    help="all factors <= 1, pawn factors monotone in the number of pawns (only drawishness)")
     args = ap.parse_args()
 
     trf = sorted(glob.glob(os.path.join(args.train, "*-exp.csv")))
@@ -249,7 +270,8 @@ def main() -> int:
     base, c0, k0 = calib_loss(tr["eval"].to_numpy(float), t_tr, va["eval"].to_numpy(float), t_va)
     print(f"old    validation loss {base:.6f}  (c {c0:.1f}, k {k0:.1f})", flush=True)
     for kind, mode in [(k, m) for k in args.models.split(",") if k for m in args.m50.split(",") if m]:
-        mt, mv = Model(kind, tr, info_tr, mode), Model(kind, va, info_va, mode)
+        mt = Model(kind, tr, info_tr, mode, args.constrained)
+        mv = Model(kind, va, info_va, mode, args.constrained)
         x0 = np.zeros(mt.size())
         x0[0], x0[1] = c0 / 10.0, np.log(200.0 / k0)
         # start g at about the old linear 50 moves scale
@@ -260,7 +282,8 @@ def main() -> int:
             x0[2 + mt.ps] = 1.0
         elif mode == "quad":
             x0[2 + mt.ps] = -0.78
-        res = minimize(mt.fun, x0, jac=True, method="L-BFGS-B", options={"maxiter": 3000, "ftol": 1e-13})
+        res = minimize(mt.fun, x0, jac=True, method="L-BFGS-B", bounds=mt.bounds(),
+                       options={"maxiter": 3000, "ftol": 1e-13})
         x = res.x
         lv = mv.loss(x)
         c, lu, a, b = mt.parts(x)
