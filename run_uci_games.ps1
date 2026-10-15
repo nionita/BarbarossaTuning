@@ -10,15 +10,15 @@
 #
 # Example (MEMO):
 #   .\run_uci_games.ps1 -Name ug-test1 -Games 100
-#   .\run_uci_games.ps1 -Name ug-a -Games 5000 -Opponents ECE12,CT800,Admete
+#   .\run_uci_games.ps1 -Name ug-a -Games 4000 -Opponents ECE-X2,CT800,Admete
 param(
     [Parameter(Mandatory = $true)][string]$Name,
     [Parameter(Mandatory = $true)][int]$Games,      # total games (all opponents), rounded up to whole pairs
-    [string[]]$Opponents = @("ECE12", "ECE-X2", "CT800", "Admete", "Odonata"),
+    [string[]]$Opponents = @("ECE-X2", "CT800", "Admete", "Odonata"),   # ECE12 is much weaker (15% in ug-test1)
     [string]$Tc = "10+0.1",
     [int]$Concurrency = 6,
     [string]$Barbarossa = "C:\Engines\Barbarossa\Barbarossa-0.8.0-fold.exe",
-    [string]$EnginesDir = "C:\Users\Nicu\Documents\Engines",
+    [string]$EnginesDir = "C:\Engines",
     [string]$Openings = "C:\Learn\Tune\hvar\open\open-moves-uniq-fm1.fen",
     [int]$Start = 0,                                # first opening (1-based); 0 = from next-opening.txt
     [string]$Root = "C:\Learn\Tune\hvar\ugames",
