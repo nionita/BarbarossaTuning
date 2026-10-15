@@ -26,9 +26,11 @@ WEIGHTS_HS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Bar
 def compiled_weights(path: str) -> dict[str, float]:
     text = open(path, encoding="utf-8").read()
     out = {}
-    for m in re.finditer(r'\("(\w+)",\s*\(\s*(-?\d+),\s*(-?\d+)\)\)', text):
+    for m in re.finditer(r'\("(\w+)"\s*,\s*\(\s*(-?\d+)\s*,\s*(-?\d+)\s*\)\s*\)', text):
         out["mid." + m.group(1)] = float(m.group(2))
         out["end." + m.group(1)] = float(m.group(3))
+    if not out:
+        raise ValueError(f"{path}: no weights found")
     return out
 
 
