@@ -12,11 +12,11 @@
 #
 # Example (MEMO):
 #   .\run_uci_games.ps1 -Name ug-test1 -Games 100
-#   .\run_uci_games.ps1 -Name ug-a -Games 4000 -Opponents ECE-X2,CT800,Admete
+#   .\run_uci_games.ps1 -Name ug-a -Games 4000 -Opponents ECE-X2,Admete,Odonata,Weiawaga
 param(
     [Parameter(Mandatory = $true)][string]$Name,
     [Parameter(Mandatory = $true)][int]$Games,      # total games (all opponents), rounded up to whole pairs
-    [string[]]$Opponents = @("ECE-X2", "CT800", "Admete", "Odonata"),   # ECE12 is much weaker (15% in ug-test1)
+    [string[]]$Opponents = @("ECE-X2", "Admete", "Odonata"),   # ECE12 (15% in ug-test1), CT800 (32% in ug-check): too weak
     [string]$Tc = "10+0.1",
     [int]$Concurrency = 6,
     [string]$Barbarossa = "C:\Engines\Barbarossa\Barbarossa-0.8.0-ucidat.exe",   # needs option -d
@@ -35,6 +35,9 @@ $known = @{
     "CT800"   = "ct800-v1.43\binaries\Windows\CT800_V1.43_x64.exe"
     "Admete"  = "Other\admete_1.5.0_windows_x86-64.exe"
     "Odonata" = "Other\odonata-0.5.1-windows-modern.exe"
+    "Weiawaga" = "Other\Weiawaga-v4.0-x86_64-pc-windows-msvc.exe"
+    "Tantabus" = "Other\tantabus-windows-2019-x86-64-v3.exe"
+    "Luna"    = "Other\luna_2.0.0_avx2_win_x86-64.exe"
 }
 # UCI options per engine (checked with "uci"; all search with 1 thread by default): 16 MB hash like
 # Barbarossa (its minimum), threads 1 explicitly, own books off (games start from our openings)
@@ -44,6 +47,9 @@ $engineOptions = @{
     "CT800"   = @("option.Hash=16", "option.OwnBook=false")
     "Admete"  = @("option.Hash=16")
     "Odonata" = @("option.Threads=1", "option.Hash=16")
+    "Weiawaga" = @("option.Threads=1", "option.Hash=16")
+    "Tantabus" = @("option.Hash=16")
+    "Luna"    = @("option.Hash=16")
 }
 
 $dir = Join-Path $Root $Name
