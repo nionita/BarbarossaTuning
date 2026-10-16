@@ -138,7 +138,7 @@ $fcArgs = $barEngines + $engineArgs + @(
 
 Set-Content -Path (Join-Path $dir "command.txt") -Value ("`"$FastChess`" " + ($fcArgs -join " "))
 Set-Content -Path (Join-Path $dir "openings.txt") -Value "$Openings start $Start, $used openings"
-Write-Host "$Name : $($rounds * $perRound) games ($rounds rounds x $perRound: $seeds version(s) x $($Opponents.Count) opponents x 2 colours, and the versions against each other), tc $Tc,"
+Write-Host "$Name : $($rounds * $perRound) games ($rounds rounds x ${perRound}: $seeds version(s) x $($Opponents.Count) opponents x 2 colours, and the versions against each other), tc $Tc,"
 Write-Host "  concurrency $Concurrency, openings from $Start, output $dir"
 
 & $FastChess @fcArgs
