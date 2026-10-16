@@ -3,16 +3,22 @@
 #
 # Creates <Root>\<Name>\ with:
 #   eng\        working directory of Barbarossa: one .data file per process (normal log off: -l 5)
+#   eng2\       the same for the second Barbarossa version (-Config2 / -Barbarossa2), if given
 #   games.pgn   the games (results for the join)
 #   fastchess.log, command.txt (the full fastchess command), openings.txt (the opening range used)
 # The openings are taken sequentially; <Root>\next-opening.txt remembers where the next run starts, so that
 # runs do not repeat openings. Afterwards:
 #   python uci_data.py --data <Root>\<Name>\eng --pgn <Root>\<Name>\games.pgn --engine Barbarossa
 #       --out <data dir> --name <Name> --shards 4
+# With a second version (-Config2 and / or -Barbarossa2) both versions play the opponents (not each other)
+# with the same openings (fastchess gauntlet with 2 seeds), names -EngName and -EngName2 in the PGN; join
+# each with its data folder and name (--data eng2 --engine <EngName2>).
 #
 # Example (MEMO):
 #   .\run_uci_games.ps1 -Name ug-test1 -Games 100
 #   .\run_uci_games.ps1 -Name ug-a -Games 4800 -Opponents Tantabus,Luna
+#   .\run_uci_games.ps1 -Name ug-c -Games 4800 -Barbarossa <exe> -Config scale-c-lin.cfg -EngName clin
+#       -Config2 scale-r4.cfg -EngName2 r4
 param(
     [Parameter(Mandatory = $true)][string]$Name,
     [Parameter(Mandatory = $true)][int]$Games,      # total games (all opponents), rounded up to whole pairs
@@ -23,6 +29,10 @@ param(
     [int]$Concurrency = 6,
     [string]$Barbarossa = "C:\Engines\Barbarossa\Barbarossa-0.8.0-ucidat.exe",   # needs option -d
     [string]$Config = "",                           # config file for Barbarossa (-c), e.g. eval parameters
+    [string]$EngName = "Barbarossa",                # name of Barbarossa in the PGN
+    [string]$Barbarossa2 = "",                      # second version: executable (default: -Barbarossa)
+    [string]$Config2 = "",                          # second version: config file
+    [string]$EngName2 = "Barbarossa2",              # second version: name in the PGN
     [string]$EnginesDir = "C:\Engines",
     [string]$Openings = "C:\Learn\Tune\hvar\open\open-moves-uniq-fm1.fen",
     [int]$Start = 0,                                # first opening (1-based); 0 = from next-opening.txt
@@ -69,7 +79,14 @@ foreach ($o in $Opponents) {
     $engineArgs += @("-engine", "cmd=$exe", "name=$o", "dir=$(Split-Path $exe)") + $engineOptions[$o]
 }
 
-$rounds = [int][math]::Ceiling($Games / (2.0 * $Opponents.Count))
+$two = [bool]($Barbarossa2 -or $Config2)
+if ($two -and -not $Barbarossa2) { $Barbarossa2 = $Barbarossa }
+if ($two -and $EngName2 -eq $EngName) { throw "the two versions need different names (-EngName, -EngName2)" }
+$seeds = if ($two) { 2 } else { 1 }
+# games per round: both colours of every version against every opponent, and the two versions against
+# each other (fastchess plays the seeds of a gauntlet also against each other)
+$perRound = 2 * ($Opponents.Count * $seeds + $seeds * ($seeds - 1) / 2)
+$rounds = [int][math]::Ceiling($Games / $perRound)
 $nextFile = Join-Path $Root "next-opening.txt"
 New-Item -ItemType Directory -Force $Root | Out-Null
 if ($Start -le 0) {
@@ -82,14 +99,24 @@ $eng = Join-Path $dir "eng"
 New-Item -ItemType Directory -Force $eng | Out-Null
 $pgn = Join-Path $dir "games.pgn"
 
-$barArgs = "-l 5 -d"
-if ($Config) {
-    if (-not (Test-Path $Config)) { throw "not found: $Config" }
-    $barArgs += " -c $Config"
+function BarArgs([string]$cfg) {
+    $a = "-l 5 -d"
+    if ($cfg) {
+        if (-not (Test-Path $cfg)) { throw "not found: $cfg" }
+        $a += " -c $cfg"
+    }
+    return $a
 }
-$fcArgs = @("-engine", "cmd=$Barbarossa", "name=Barbarossa", "args=$barArgs", "dir=$eng") + $engineArgs + @(
+$barEngines = @("-engine", "cmd=$Barbarossa", "name=$EngName", "args=$(BarArgs $Config)", "dir=$eng")
+if ($two) {
+    if (-not (Test-Path $Barbarossa2)) { throw "not found: $Barbarossa2" }
+    $eng2 = Join-Path $dir "eng2"
+    New-Item -ItemType Directory -Force $eng2 | Out-Null
+    $barEngines += @("-engine", "cmd=$Barbarossa2", "name=$EngName2", "args=$(BarArgs $Config2)", "dir=$eng2")
+}
+$fcArgs = $barEngines + $engineArgs + @(
     "-each", "tc=$Tc", "proto=uci",
-    "-tournament", "gauntlet", "-seeds", "1",
+    "-tournament", "gauntlet", "-seeds", "$seeds",
     "-rounds", "$rounds", "-games", "2", "-repeat",
     "-concurrency", "$Concurrency",
     "-openings", "file=$Openings", "format=epd", "order=sequential", "start=$Start",
@@ -101,7 +128,7 @@ $fcArgs = @("-engine", "cmd=$Barbarossa", "name=Barbarossa", "args=$barArgs", "d
 
 Set-Content -Path (Join-Path $dir "command.txt") -Value ("`"$FastChess`" " + ($fcArgs -join " "))
 Set-Content -Path (Join-Path $dir "openings.txt") -Value "$Openings start $Start, $used openings"
-Write-Host "$Name : $($rounds * 2 * $Opponents.Count) games ($rounds rounds x 2 x $($Opponents.Count) opponents), tc $Tc,"
+Write-Host "$Name : $($rounds * $perRound) games ($rounds rounds x $perRound: $seeds version(s) x $($Opponents.Count) opponents x 2 colours, and the versions against each other), tc $Tc,"
 Write-Host "  concurrency $Concurrency, openings from $Start, output $dir"
 
 & $FastChess @fcArgs
