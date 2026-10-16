@@ -51,6 +51,11 @@ $known = @{
     "Weiawaga" = "Other\Weiawaga-v4.0-x86_64-pc-windows-msvc.exe"
     "Tantabus" = "Other\tantabus-windows-2019-x86-64-v3.exe"
     "Luna"    = "Other\luna_2.0.0_avx2_win_x86-64.exe"
+    "Zurichess" = "Zurichess\zurichess-glarus-windows-amd64.exe"
+    "Zevra"   = "Zevra\bin\zevra_popcnt.exe"
+    "GreKo"   = "greko-2021.12\bin\GreKo-Windows-64.exe"
+    "Blocky"  = "Other\Blocky-2.0.0-x86.exe"
+    "Supernova" = "Other\Supernova_2.4.exe"
 }
 # UCI options per engine (checked with "uci"; all search with 1 thread by default): 16 MB hash like
 # Barbarossa (its minimum), threads 1 explicitly, own books off (games start from our openings)
@@ -63,6 +68,11 @@ $engineOptions = @{
     "Weiawaga" = @("option.Threads=1", "option.Hash=16")
     "Tantabus" = @("option.Hash=16")
     "Luna"    = @("option.Hash=16")
+    "Zurichess" = @("option.Hash=16")
+    "Zevra"   = @("option.Hash=16")
+    "GreKo"   = @("option.Threads=1", "option.Hash=16")
+    "Blocky"  = @("option.Hash=128")	# its minimum
+    "Supernova" = @("option.Threads=1", "option.Hash=16")
 }
 
 $dir = Join-Path $Root $Name
