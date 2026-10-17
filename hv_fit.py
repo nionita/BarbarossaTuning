@@ -23,6 +23,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 import time
 from dataclasses import dataclass, replace
@@ -62,8 +63,12 @@ class Problem:
     """Loss and gradient of one model on one data set."""
 
     def __init__(self, spec: Spec, d: hd.Data, q: float, kq: float, hscale: np.ndarray | None = None,
-                 source_k: bool = False):
+                 source_k: bool = False, sweights: np.ndarray | None = None):
         self.spec = spec
+        # weight of every source in the loss (training only; None = all 1): the loss is the weighted mean
+        self.sweights = sweights
+        self.w = None if sweights is None else sweights[d.src]
+        self.wsum = d.n if self.w is None else float(self.w.sum())
         self.d = d
         self.q = q
         self.kq = kq
@@ -88,7 +93,7 @@ class Problem:
             self.hscale = np.where(rms > 1e-9, 8.0 / np.maximum(rms, 1e-9), W_SCALE)
 
     def on(self, d: hd.Data) -> "Problem":
-        """The same model (and parameter units) on other data (with the same sources)."""
+        """The same model (and parameter units) on other data (with the same sources), unweighted."""
         if d.sources != self.d.sources:
             raise ValueError(f"sources {d.sources} differ from {self.d.sources}")
         return Problem(self.spec, d, self.q, self.kq, self.hscale, self.source_k)
@@ -132,7 +137,9 @@ class Problem:
 
     def loss(self, x: np.ndarray) -> float:
         r = self.target - expit(self.scales(x) * self.evals(x))
-        return float(np.mean(r * r))
+        if self.w is None:
+            return float(np.mean(r * r))
+        return float(np.dot(self.w, r * r) / self.wsum)
 
     def fun(self, x: np.ndarray):
         d = self.d
@@ -141,9 +148,12 @@ class Problem:
         ur = self.scales(x)
         s = expit(ur * e)
         r = self.target - s
-        n = d.n
-        f = float(np.mean(r * r))
-        gz = -2.0 * r * s * (1 - s) / n          # dL / d(u e)
+        if self.w is None:
+            f = float(np.mean(r * r))
+            gz = -2.0 * r * s * (1 - s) / d.n    # dL / d(u e)
+        else:
+            f = float(np.dot(self.w, r * r) / self.wsum)
+            gz = -2.0 * r * s * (1 - s) * self.w / self.wsum
         ge = gz * ur                             # dL / de
         grad = np.zeros_like(x)
         grad[0] = C_SCALE * ge.sum()
@@ -228,6 +238,9 @@ def main() -> int:
                          "'^([^-]+)-' for r3-tr-01-filt-exp.csv -> r3); every source gets its own offset c")
     ap.add_argument("--source-k", action="store_true",
                     help="with --sources: also a k per source (relative to the first source)")
+    ap.add_argument("--weight", default="",
+                    help="with --sources: loss weights of sources, 'REGEX=FACTOR;...' (e.g. '^u[gbcr]=5'), training "
+                         "only (selection and test unweighted)")
     args = ap.parse_args()
 
     models = [m for m in args.models.split(",") if m]
@@ -268,8 +281,22 @@ def main() -> int:
         say(f"sources ({'offset and k' if args.source_k else 'offset'} each): "
             + ", ".join(f"{s} {c:,}" for s, c in zip(srcs, cnt)))
 
+    sweights = None
+    if args.weight:
+        sweights = np.ones(len(srcs))
+        for item in args.weight.split(";"):
+            pat, _, fac = item.rpartition("=")
+            hit = [j for j, s in enumerate(srcs) if re.search(pat, s)]
+            if not hit:
+                raise SystemExit(f"--weight {item}: no source matches")
+            sweights[hit] = float(fac)
+        cnt = np.bincount(train.src, minlength=len(srcs))
+        share = cnt * sweights / float(np.dot(cnt, sweights))
+        say("source weights (share of the training loss): "
+            + ", ".join(f"{s} x{w:g} ({100 * sh:.1f}%)" for s, w, sh in zip(srcs, sweights, share)))
+
     def problem(spec: Spec) -> Problem:
-        return Problem(spec, train, args.q, args.kq, source_k=args.source_k)
+        return Problem(spec, train, args.q, args.kq, source_k=args.source_k, sweights=sweights)
 
     results: dict[str, dict] = {}
     xs: dict[str, np.ndarray] = {}
