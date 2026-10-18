@@ -199,6 +199,17 @@ def take(d: hd.Data, idx: np.ndarray) -> hd.Data:
                    const=d.const[idx], feats=d.feats[idx], pst=d.pst[idx], src=d.src[idx])
 
 
+def drop_features(d: hd.Data, names: list[str], w0: dict[str, tuple[int, int]]) -> hd.Data:
+    """The data without the given features: their contribution with the start weights w0 is subtracted from
+    the eval (eval ~ sum_i f_i (wmid_i dmid + wend_i dend) + const), the columns are removed."""
+    idx = [d.names.index(n) for n in names]
+    contrib = np.zeros(d.n)
+    for i, n in zip(idx, names):
+        contrib += d.feats[:, i] * (w0[n][0] * d.dmid + w0[n][1] * d.dend)
+    keep = [i for i in range(len(d.names)) if i not in idx]
+    return replace(d, names=[d.names[i] for i in keep], feats=d.feats[:, keep], eval=d.eval - contrib)
+
+
 def sq_name(s: int) -> str:
     return "abcdefgh"[s % 8] + str(s // 8 + 1)
 
@@ -238,6 +249,9 @@ def main() -> int:
                          "'^([^-]+)-' for r3-tr-01-filt-exp.csv -> r3); every source gets its own offset c")
     ap.add_argument("--source-k", action="store_true",
                     help="with --sources: also a k per source (relative to the first source)")
+    ap.add_argument("--drop", default="",
+                    help="comma separated HCE weight names to remove: their contribution (compiled weights) is taken "
+                         "out of the eval and they are written with weight 0 to the configs")
     ap.add_argument("--weight", default="",
                     help="with --sources: loss weights of sources, 'REGEX=FACTOR;...' (e.g. '^u[gbcr]=5'), training "
                          "only (selection and test unweighted)")
@@ -272,6 +286,11 @@ def main() -> int:
     else:
         v = hd.load(vfiles, args.max_score, source_re=sre, sources=srcs)
         sel, test = take(v, np.arange(0, v.n, 2)), take(v, np.arange(1, v.n, 2))
+    dropped = [n for n in args.drop.split(",") if n]
+    if dropped:
+        w0d = hd.read_weights(os.path.dirname(train.files[0]))
+        train, sel, test = (drop_features(d, dropped, w0d) for d in (train, sel, test))
+        say(f"dropped features (contribution removed from the eval): {', '.join(dropped)}")
     used = hd.pst_used(train)
     say(f"train {train.n:,} records ({len(train.files)} files), selection {sel.n:,}, test {test.n:,}; "
         f"q = {args.q}, max score {args.max_score}; PST columns used {int(used.sum())} / {hd.N_PST} "
@@ -399,6 +418,8 @@ def main() -> int:
                         old = w0[n][ph]
                         new = old + wh[i, ph]
                         fo.write(f"{pname}.{n} = {round(new)}\n")
+                    for n in dropped:
+                        fo.write(f"{pname}.{n} = 0\n")
                 for i, n in enumerate(train.names):
                     say(f"  {n:18s} mid {w0[n][0]:5d} -> {w0[n][0] + wh[i, 0]:7.1f}   "
                         f"end {w0[n][1]:5d} -> {w0[n][1] + wh[i, 1]:7.1f}")
