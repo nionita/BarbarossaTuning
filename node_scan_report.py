@@ -41,7 +41,10 @@ def main():
 
     res = load(a.dir)
     idx = sorted(set.intersection(*(set(v) for v in res.values())))
-    print(f"{len(res)} configs, {len(idx)} positions done by all")
+    # no ratio for a position skipped by the perf test (0 nodes) or over the time limit (-1)
+    none = {i for i in idx if any(v[i] <= 0 for v in res.values())}
+    idx = [i for i in idx if i not in none]
+    print(f"{len(res)} configs, {len(idx)} positions done by all, {len(none)} without node count left out: {sorted(none)}")
     ref, base = res[a.ref], res[a.base]
     rng = random.Random(1)
     boots = [[rng.choice(idx) for _ in idx] for _ in range(a.boot)]
