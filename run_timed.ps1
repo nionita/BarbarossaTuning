@@ -7,6 +7,7 @@ param(
     [string]$Opp = "dev090",
     [string]$CandName = "",     # candidate name in the games, default its build; needed when Cand = Opp
     [string]$CandParams = "",   # candidate parameters (engine option -p), e.g. epLmrFix=14
+    [string]$OppParams = "",    # opponent parameters, as CandParams
     [string]$Tc = "10+0.1",
     [int]$Rounds = 2000,
     [int]$Concurrency = 8,
@@ -22,9 +23,10 @@ $eng = Join-Path $dir "eng"
 New-Item -ItemType Directory -Force $eng | Out-Null
 if (-not $CandName) { $CandName = $Cand }
 $candArgs = if ($CandParams) { "-l 5 -p $CandParams" } else { "-l 5" }
+$oppArgs = if ($OppParams) { "-l 5 -p $OppParams" } else { "-l 5" }
 $fcArgs = @(
     "-engine", "cmd=$base\Barbarossa-$Cand-fast.exe", "name=$CandName", "args=$candArgs", "dir=$eng",
-    "-engine", "cmd=$base\Barbarossa-$Opp-fast.exe", "name=$Opp", "args=-l 5", "dir=$eng",
+    "-engine", "cmd=$base\Barbarossa-$Opp-fast.exe", "name=$Opp", "args=$oppArgs", "dir=$eng",
     "-each", "tc=$Tc", "proto=uci",
     "-rounds", "$Rounds", "-games", "2", "-repeat",
     "-concurrency", "$Concurrency",
