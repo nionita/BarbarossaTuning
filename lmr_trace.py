@@ -1,6 +1,7 @@
 """Parse the LMR level trace (Barbarossa lmrt 38658b1 or later, engine logs at info level, -l 2): node weighted level
 distribution by draft, steps up and down, penalty depth of the drops, recovery.
-lmr_trace.py "<glob of barbarossa-*.log>""""
+lmr_trace.py "<glob of barbarossa-*.log>"
+"""
 import glob
 import re
 import sys
