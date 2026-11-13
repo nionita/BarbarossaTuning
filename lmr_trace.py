@@ -61,7 +61,7 @@ for g in ("d<=8", "d9-12", "d13+", "all"):
     if not tot:
         continue
     mean = sum(l * w for l, w in wt[g].items()) / tot
-    row = " ".join("%2d:%4.1f" % (l, 100 * wt[g][l] / tot) for l in range(16) if wt[g][l])
+    row = " ".join("%2d:%4.1f" % (l, 100 * wt[g][l] / tot) for l in range(32) if wt[g][l])
     print("  %-6s nodes %11d mean %.2f | %s" % (g, tot, mean, row))
 print("Level at the end of complete iterations:")
 for g in ("d<=8", "d9-12", "d13+"):
