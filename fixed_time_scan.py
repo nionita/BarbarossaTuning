@@ -1,6 +1,7 @@
 """Fixed time searches of one engine with several parameter settings on the same positions, all settings in parallel
 (so a throttling CPU slows them alike); the search is stopped after the move time (the engine ignores movetime).
-Per setting: completed depth, nodes and time of the last full-depth info line; the engine logs (-l 2) go to <out>/<label>/ for further parsing (e.g. lmr_trace.py).
+Per setting: completed depth, nodes and time of the last full-depth info line;
+the engine logs (-l 2) go to <out>/<label>/ for further parsing (e.g. lmr_trace.py).
 fixed_time_scan.py <engine> <fen file> <n positions> <movetime ms> <out dir> <label=params|-> ...
 """
 import os
