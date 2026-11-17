@@ -1,7 +1,7 @@
 """Root positions of the searches in a Barbarossa UCI log (Info level), for replays with SelfPlay -P (one process per
 position). Uses the parser of mate_time.py (same folder): games with 10 moves or more, the root FEN of every search
 (first NoEval line), with the clock, the final draft and score, the seldepth / draft ratio and the piece count.
-The log writes the board with a trailing '/', removed here (standard FEN).
+Logs before Barbarossa sfen write the board with a trailing '/', removed here (standard FEN).
 
 Writes into <outdir>:
 - roots.csv: game,move,clock_ms,used_ms,atmax,draft,final,drop,np,nq,sd_over_d,fen

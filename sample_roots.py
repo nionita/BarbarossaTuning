@@ -25,7 +25,7 @@ NPM = {"n": 3, "b": 3, "r": 5, "q": 9}
 
 
 def std_fen(f):
-    """Barbarossa writes a '/' after the placement: make it standard."""
+    """Barbarossa before sfen writes a '/' after the placement: make it standard."""
     return f.replace("/ ", " ", 1)
 
 

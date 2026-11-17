@@ -64,7 +64,7 @@ class Search:
 
 
 def barbarossa_board(fen: str) -> chess.Board:
-    """Board from a Barbarossa fen (placement may end with '/', counters may be missing)."""
+    """Board from a Barbarossa fen (placement may end with '/' before sfen, counters may be missing)."""
     parts = fen.split()
     parts[0] = parts[0].rstrip("/")
     defaults = ["", "w", "-", "-", "0", "1"]
